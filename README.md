@@ -1335,7 +1335,7 @@ ManusClaw's **Universal LLM Router** routes to the right client automatically:
 ### Core Install
 
 ```bash
-git clone https://github.com/The-JDdev/manusclaw.git
+git clone https://github.com/ManusAgents/manusclaw.git
 cd manusclaw
 chmod +x install.sh
 ./install.sh
