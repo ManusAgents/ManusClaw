@@ -1,0 +1,10 @@
+# Pollinations (Free / API)
+# Pollinations provides an OpenAI compatible API for text generation.
+
+[llm]
+provider = "universal"
+base_url = "https://text.pollinations.ai/openai" 
+api_key = "none" # Pollinations doesn't require an API key
+model = "openai" # Can be openai, mistral, llama, etc. depending on Pollinations endpoints
+max_tokens = 4096
+temperature = 0.0

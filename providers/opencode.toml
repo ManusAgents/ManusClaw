@@ -1,0 +1,10 @@
+# opencode Native Provider (Free / API)
+# OpenAI-compatible endpoint with public API key.
+
+[llm]
+provider = "openai"
+base_url = "https://opencode.ai/zen/v1"
+api_key = "public"
+model = "deepseek-v4-flash-free"
+max_tokens = 4096
+temperature = 0.0

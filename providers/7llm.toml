@@ -1,0 +1,10 @@
+# 7LLM (Paid / API)
+# Standard OpenAI-compatible endpoint.
+
+[llm]
+provider = "universal"
+base_url = "https://api.7llm.com/v1" # Verify the actual 7LLM endpoint
+api_key = "YOUR-7LLM-API-KEY"
+model = "gpt-4o"
+max_tokens = 4096
+temperature = 0.0

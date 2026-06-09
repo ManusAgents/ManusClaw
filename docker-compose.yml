@@ -1,0 +1,93 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  ManusClaw — Docker Compose
+#
+#  Profiles:
+#    cli      — single interactive run (default)
+#    server   — FastAPI + WebSocket server
+#    multi    — multi-agent pipeline runner
+#
+#  Usage:
+#    docker compose up                                 # CLI mode
+#    docker compose --profile server up -d            # server mode
+#    docker compose run --rm manusclaw "your task"    # one-shot task
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── CLI agent ──────────────────────────────────────────────────────────────
+  manusclaw:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: manusclaw:latest
+    container_name: manusclaw-agent
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./config.toml:/manusclaw/config.toml:ro
+      - manusclaw-workspace:/manusclaw/workspace
+      - manusclaw-logs:/manusclaw/logs
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+    restart: "no"
+
+  # ── WebSocket / REST server ────────────────────────────────────────────────
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: manusclaw:latest
+    container_name: manusclaw-server
+    command: ["python", "run_server.py", "--host", "0.0.0.0", "--port", "8765"]
+    ports:
+      - "8765:8765"
+    volumes:
+      - ./config.toml:/manusclaw/config.toml:ro
+      - manusclaw-workspace:/manusclaw/workspace
+      - manusclaw-logs:/manusclaw/logs
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+    profiles:
+      - server
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8765/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── Multi-agent pipeline ───────────────────────────────────────────────────
+  multi-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: manusclaw:latest
+    container_name: manusclaw-multi
+    command: ["python", "run_multi_agent.py"]
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./config.toml:/manusclaw/config.toml:ro
+      - manusclaw-workspace:/manusclaw/workspace
+      - manusclaw-logs:/manusclaw/logs
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+    profiles:
+      - multi
+    restart: "no"
+
+volumes:
+  manusclaw-workspace:
+  manusclaw-logs:

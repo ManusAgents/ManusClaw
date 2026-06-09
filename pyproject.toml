@@ -1,0 +1,87 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "manusclaw"
+version = "5.0.0"
+description = "ManusClaw: Production-grade autonomous AI agent framework by The-JDdev"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Modified MIT License - see LICENSE file" }
+authors = [{ name = "The-JDdev (SHS Shobuj)" }]
+
+dependencies = [
+    "pydantic>=2.7,<3",
+    "python-dotenv>=1.0",
+    "pyyaml>=6.0",
+    "openai>=1.30",
+    "anthropic>=0.28",
+    "aiohttp>=3.9",
+]
+
+[project.optional-dependencies]
+# LLM providers
+mistral = ["mistralai>=1.0"]
+bedrock = ["boto3>=1.34"]
+google = ["google-generativeai>=0.7"]
+ollama = ["ollama>=0.2.0"]
+
+# Tools
+browser = ["playwright>=1.44", "crawl4ai>=0.3"]
+search = ["duckduckgo-search>=6.2"]
+
+# Server
+server = ["fastapi>=0.111", "uvicorn[standard]>=0.30"]
+
+# CLI
+cli = ["rich>=13.0", "prompt_toolkit>=3.0"]
+
+# Scheduler
+cron = ["croniter>=2.0"]
+
+# Visualization
+viz = ["matplotlib>=3.9", "mpld3>=0.5.10"]
+
+# Voice
+voice = ["pvporcupine>=3.0", "sounddevice>=0.4", "speech-recognition>=3.10", "pyttsx3>=2.90", "elevenlabs>=0.9"]
+
+# SSH
+ssh = ["asyncssh>=2.14"]
+
+# Gmail
+gmail = ["google-api-python-client>=2.100", "google-auth-httplib2>=0.1"]
+
+# Matrix
+matrix = ["matrix-nio>=0.22"]
+
+# Companion apps
+companion = ["pystray>=0.19", "rumps>=0.2"]
+
+# Everything
+all = ["manusclaw[mistral,bedrock,google,ollama,browser,search,server,cli,cron,viz]"]
+
+# All new features
+all-plus = ["manusclaw[all,voice,ssh,gmail,matrix,companion]"]
+
+[project.scripts]
+manusclaw = "app.cli:main"
+manusclaw-server = "app.server.main:serve"
+manusclaw-cron = "app.cron:main"
+manusclaw-multi = "app.multi_agent:run_cli"
+manusclaw-sessions = "app.session_tools:main"
+manusclaw-channels = "app.messaging:main_channels"
+manusclaw-webhook = "app.server.webhooks:main_cli"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-n 4 --tb=short -q"
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/desktop/*", "tests/*"]

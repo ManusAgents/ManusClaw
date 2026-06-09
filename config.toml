@@ -1,0 +1,43 @@
+# ManusClaw Configuration
+# Copy and customize this file. Secrets should use environment variables.
+
+[llm]
+# provider options: "mock" (no API key needed), "openai", "azure", "anthropic", "ollama", "openrouter", "gguf", "huggingface"
+provider = "mock"
+model    = "gpt-4o"
+# base_url = "https://api.openai.com/v1"  # or Azure endpoint, OpenRouter, etc.
+# api_key  = ""  # prefer env var: OPENAI_API_KEY or ANTHROPIC_API_KEY
+max_tokens   = 4096
+temperature  = 0.0
+max_retries  = 6
+timeout      = 1800   # 30 minutes — safe for deep-reasoning models (DeepSeek R1, o1, etc.)
+
+[browser]
+headless          = true
+disable_security  = false
+max_content_length = 10000
+
+[search]
+engines     = ["duckduckgo", "bing"]
+max_results = 10
+
+[sandbox]
+enabled      = false
+docker_image = "python:3.11-slim"
+memory_limit = "256m"
+timeout      = 30
+
+[runflow]
+enable_data_analysis = false
+timeout = 7200
+
+[ssh]
+# SSH remote gateway control (requires asyncssh)
+enabled            = false
+port               = 2222
+host               = "0.0.0.0"
+# host_key_path      = "~/.manusclaw/ssh/host_key"
+# authorized_keys_path = "~/.manusclaw/ssh/authorized_keys"
+
+workspace_dir = "workspace"
+max_steps     = 30

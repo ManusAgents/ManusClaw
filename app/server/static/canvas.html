@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ManusClaw Canvas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg-primary: #0f1117;
+  --bg-secondary: #1a1d27;
+  --bg-tertiary: #242836;
+  --text-primary: #e4e6f0;
+  --text-secondary: #9ca3b8;
+  --text-muted: #6b7280;
+  --accent: #7c6ef0;
+  --accent-hover: #8f82f2;
+  --accent-dim: rgba(124, 110, 240, 0.15);
+  --border: #2d3143;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --error: #f87171;
+  --info: #60a5fa;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+[data-theme="light"] {
+  --bg-primary: #f8f9fc;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f0f1f5;
+  --text-primary: #1a1d27;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --accent: #6c5ce7;
+  --accent-dim: rgba(108, 92, 231, 0.1);
+  --border: #e5e7eb;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%;
+  font-family: var(--font);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+/* ─── Header ─── */
+.header {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header h1 {
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.header-status {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--accent-dim);
+  color: var(--text-secondary);
+}
+.header-status.connected { background: rgba(52,211,153,0.15); color: var(--success); }
+.header-actions { display: flex; gap: 8px; }
+.header-actions button {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 13px;
+  transition: all 0.2s;
+}
+.header-actions button:hover {
+  background: var(--bg-hover, var(--border));
+  color: var(--text-primary);
+}
+
+/* ─── Canvas area ─── */
+.canvas-area {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* ─── Component cards ─── */
+.component-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  transition: box-shadow 0.2s;
+  animation: fadeIn 0.3s ease-out;
+}
+.component-card:hover {
+  box-shadow: 0 4px 20px rgba(124, 110, 240, 0.1);
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.component-card .card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.component-card .card-header .card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.component-card .card-header .card-type {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* ─── Text component ─── */
+.text-content {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+.text-content h1 { font-size: 22px; margin: 12px 0 8px; font-weight: 700; }
+.text-content h2 { font-size: 18px; margin: 10px 0 6px; font-weight: 600; }
+.text-content h3 { font-size: 16px; margin: 8px 0 4px; font-weight: 600; }
+.text-content p { margin: 6px 0; }
+.text-content code {
+  background: var(--bg-tertiary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+}
+.text-content pre {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.text-content pre code {
+  background: none;
+  padding: 0;
+}
+.text-content blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 8px 0;
+  padding-left: 12px;
+  color: var(--text-secondary);
+}
+.text-content ul, .text-content ol { margin: 6px 0 6px 24px; }
+.text-content a { color: var(--accent); text-decoration: none; }
+.text-content a:hover { text-decoration: underline; }
+
+/* ─── Chart component ─── */
+.chart-wrapper {
+  position: relative;
+  width: 100%;
+  max-height: 400px;
+}
+.chart-wrapper canvas {
+  width: 100% !important;
+  max-height: 400px;
+}
+.chart-title {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+/* ─── Image component ─── */
+.image-content {
+  text-align: center;
+}
+.image-content img {
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.image-content .image-caption {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+/* ─── Button component ─── */
+.canvas-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.canvas-button.primary {
+  background: var(--accent);
+  color: #fff;
+}
+.canvas-button.primary:hover { background: var(--accent-hover); }
+.canvas-button.secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+.canvas-button.secondary:hover { background: var(--border); }
+.canvas-button.danger {
+  background: var(--error);
+  color: #fff;
+}
+.canvas-button.danger:hover { opacity: 0.9; }
+
+/* ─── Table component ─── */
+.table-content {
+  overflow-x: auto;
+}
+.table-content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.table-content th {
+  background: var(--bg-tertiary);
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+}
+.table-content td {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.table-content tr:hover td {
+  background: var(--accent-dim);
+}
+.table-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+/* ─── Empty state ─── */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+}
+.empty-state .empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+.empty-state h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+}
+.empty-state p {
+  font-size: 14px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 640px) {
+  .canvas-area { padding: 12px; }
+  .component-card { padding: 12px; }
+}
+</style>
+</head>
+<body data-theme="dark">
+
+<div class="header">
+  <h1>📊 ManusClaw Canvas</h1>
+  <span class="header-status" id="status">Connecting...</span>
+  <div class="header-actions">
+    <button onclick="requestSync()">🔄 Sync</button>
+    <button onclick="toggleTheme()">🌙</button>
+  </div>
+</div>
+
+<div class="canvas-area" id="canvas-area">
+  <div class="empty-state" id="empty-state">
+    <div class="empty-icon">🎨</div>
+    <h2>Canvas is empty</h2>
+    <p>Components rendered by the agent will appear here in real-time.</p>
+  </div>
+</div>
+
+<script>
+// ─── State ───
+let ws = null;
+let sessionId = new URLSearchParams(window.location.search).get('session') || 'default';
+let isConnected = false;
+const chartInstances = {};
+
+// ─── Helpers ───
+function getApiUrl() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${proto}//${location.host}`;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function renderMarkdown(text) {
+  // Simple markdown rendering (basic support)
+  return text
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`(.+?)`/g, '<code>$1</code>')
+    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br>');
+}
+
+// ─── WebSocket ───
+function connectCanvas() {
+  const statusEl = document.getElementById('status');
+  const apiKey = new URLSearchParams(window.location.search).get('api_key') || '';
+
+  let url = `${getApiUrl()}/ws/canvas/${sessionId}`;
+  if (apiKey) {
+    url += `?api_key=${encodeURIComponent(apiKey)}`;
+  }
+
+  try {
+    ws = new WebSocket(url);
+  } catch (e) {
+    statusEl.textContent = 'Connection failed';
+    return;
+  }
+
+  ws.onopen = () => {
+    isConnected = true;
+    statusEl.textContent = '● Live';
+    statusEl.className = 'header-status connected';
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      handleCanvasMessage(msg);
+    } catch (e) {
+      console.error('Parse error:', e);
+    }
+  };
+
+  ws.onclose = () => {
+    isConnected = false;
+    statusEl.textContent = 'Disconnected';
+    statusEl.className = 'header-status';
+    // Auto-reconnect after 3s
+    setTimeout(connectCanvas, 3000);
+  };
+
+  ws.onerror = () => {
+    statusEl.textContent = 'Error';
+  };
+}
+
+function handleCanvasMessage(msg) {
+  switch (msg.message_type) {
+    case 'sync':
+      renderComponents(msg.components || []);
+      break;
+
+    case 'update':
+      if (msg.clear_first) {
+        clearCanvas();
+      }
+      // Remove deleted components
+      if (msg.removed) {
+        msg.removed.forEach(id => removeComponentElement(id));
+      }
+      renderComponents(msg.components || []);
+      break;
+
+    case 'clear':
+      clearCanvas();
+      break;
+
+    case 'pong':
+      break;
+  }
+}
+
+function requestSync() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      message_type: 'sync',
+      session_id: sessionId,
+    }));
+  }
+}
+
+// ─── Rendering ───
+function clearCanvas() {
+  const area = document.getElementById('canvas-area');
+  area.innerHTML = `
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">🎨</div>
+      <h2>Canvas is empty</h2>
+      <p>Components rendered by the agent will appear here in real-time.</p>
+    </div>
+  `;
+  // Destroy all chart instances
+  Object.keys(chartInstances).forEach(key => {
+    if (chartInstances[key]) {
+      chartInstances[key].destroy();
+      delete chartInstances[key];
+    }
+  });
+}
+
+function removeComponentElement(componentId) {
+  const el = document.getElementById(`comp-${componentId}`);
+  if (el) {
+    // Destroy chart if any
+    if (chartInstances[componentId]) {
+      chartInstances[componentId].destroy();
+      delete chartInstances[componentId];
+    }
+    el.remove();
+  }
+  checkEmptyState();
+}
+
+function renderComponents(components) {
+  const emptyState = document.getElementById('empty-state');
+  if (emptyState) emptyState.remove();
+
+  const area = document.getElementById('canvas-area');
+
+  components.forEach(comp => {
+    const existing = document.getElementById(`comp-${comp.id}`);
+    if (existing) {
+      // Update existing component
+      renderComponentContent(existing, comp);
+    } else {
+      // Create new component card
+      const card = document.createElement('div');
+      card.className = 'component-card';
+      card.id = `comp-${comp.id}`;
+
+      const header = document.createElement('div');
+      header.className = 'card-header';
+      header.innerHTML = `
+        <span class="card-title">${escapeHtml(comp.id)}</span>
+        <span class="card-type">${escapeHtml(comp.component_type || 'unknown')}</span>
+      `;
+      card.appendChild(header);
+
+      const content = document.createElement('div');
+      content.className = 'component-content';
+      card.appendChild(content);
+
+      area.appendChild(card);
+      renderComponentContent(content, comp);
+    }
+  });
+
+  checkEmptyState();
+}
+
+function renderComponentContent(container, comp) {
+  const props = comp.props || {};
+  const type = comp.component_type || 'text';
+
+  switch (type) {
+    case 'text':
+    case 'markdown':
+      renderText(container, props.text || props);
+      break;
+
+    case 'chart':
+      renderChart(container, comp.id, props.chart || props);
+      break;
+
+    case 'image':
+      renderImage(container, props.image || props);
+      break;
+
+    case 'button':
+      renderButton(container, comp.id, props.button || props);
+      break;
+
+    case 'table':
+      renderTable(container, props.table || props);
+      break;
+
+    default:
+      container.innerHTML = `<p style="color:var(--text-muted)">Unknown component type: ${escapeHtml(type)}</p>`;
+  }
+}
+
+function renderText(container, textData) {
+  const content = textData.content || '';
+  const isMarkdown = textData.markdown || false;
+
+  let div = container.querySelector('.text-content');
+  if (!div) {
+    div = document.createElement('div');
+    div.className = 'text-content';
+    container.innerHTML = '';
+    container.appendChild(div);
+  }
+
+  if (isMarkdown) {
+    div.innerHTML = renderMarkdown(content);
+  } else {
+    div.textContent = content;
+  }
+}
+
+function renderChart(container, compId, chartData) {
+  const chartType = chartData.chart_type || 'bar';
+  const labels = chartData.labels || [];
+  const datasets = chartData.datasets || [];
+  const title = chartData.title || '';
+
+  // Destroy existing chart
+  if (chartInstances[compId]) {
+    chartInstances[compId].destroy();
+  }
+
+  let titleEl = container.querySelector('.chart-title');
+  let canvas = container.querySelector('canvas');
+  let wrapper = container.querySelector('.chart-wrapper');
+
+  if (!wrapper) {
+    container.innerHTML = '';
+    if (title) {
+      titleEl = document.createElement('div');
+      titleEl.className = 'chart-title';
+      titleEl.textContent = title;
+      container.appendChild(titleEl);
+    }
+    wrapper = document.createElement('div');
+    wrapper.className = 'chart-wrapper';
+    canvas = document.createElement('canvas');
+    wrapper.appendChild(canvas);
+    container.appendChild(wrapper);
+  }
+
+  // Chart.js theme
+  const isDark = document.body.getAttribute('data-theme') !== 'light';
+  const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+  const textColor = isDark ? '#9ca3b8' : '#4b5563';
+
+  try {
+    chartInstances[compId] = new Chart(canvas, {
+      type: chartType,
+      data: {
+        labels: labels,
+        datasets: datasets.map(ds => ({
+          label: ds.label || '',
+          data: ds.data || [],
+          backgroundColor: ds.background_color || 'rgba(124, 110, 240, 0.6)',
+          borderColor: ds.border_color || '#7c6ef0',
+          borderWidth: ds.border_width || 1,
+          fill: ds.fill || false,
+        })),
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            labels: { color: textColor, font: { family: 'Inter', size: 12 } },
+          },
+          title: {
+            display: false,
+          },
+        },
+        scales: ['pie', 'doughnut', 'polarArea', 'radar'].includes(chartType)
+          ? {}
+          : {
+              x: {
+                ticks: { color: textColor },
+                grid: { color: gridColor },
+              },
+              y: {
+                ticks: { color: textColor },
+                grid: { color: gridColor },
+              },
+            },
+        ...chartData.options,
+      },
+    });
+  } catch (e) {
+    container.innerHTML = `<p style="color:var(--error)">Chart render error: ${escapeHtml(e.message)}</p>`;
+  }
+}
+
+function renderImage(container, imageData) {
+  const src = imageData.src || '';
+  const alt = imageData.alt || '';
+  const caption = imageData.caption || '';
+
+  container.innerHTML = `
+    <div class="image-content">
+      <img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" loading="lazy"
+           onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+      <p style="display:none; color:var(--error); font-size:13px;">Failed to load image</p>
+      ${caption ? `<div class="image-caption">${escapeHtml(caption)}</div>` : ''}
+    </div>
+  `;
+}
+
+function renderButton(container, compId, buttonData) {
+  const label = buttonData.label || 'Button';
+  const action = buttonData.action || '';
+  const style = buttonData.style || 'primary';
+  const data = buttonData.data || {};
+
+  container.innerHTML = `
+    <button class="canvas-button ${style}" data-comp-id="${escapeHtml(compId)}" data-action="${escapeHtml(action)}">
+      ${escapeHtml(label)}
+    </button>
+  `;
+
+  const btn = container.querySelector('.canvas-button');
+  btn.addEventListener('click', () => {
+    // Send click event back to agent via WebSocket
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        message_type: 'event',
+        session_id: sessionId,
+        component_id: compId,
+        event_type: 'click',
+        action: action,
+        data: data,
+        timestamp: Date.now() / 1000,
+      }));
+    }
+
+    // Visual feedback
+    btn.style.transform = 'scale(0.95)';
+    setTimeout(() => { btn.style.transform = ''; }, 150);
+  });
+}
+
+function renderTable(container, tableData) {
+  const headers = tableData.headers || [];
+  const rows = tableData.rows || [];
+  const title = tableData.title || '';
+
+  let html = '';
+  if (title) {
+    html += `<div class="table-title">${escapeHtml(title)}</div>`;
+  }
+  html += '<div class="table-content"><table>';
+  if (headers.length > 0) {
+    html += '<thead><tr>';
+    headers.forEach(h => { html += `<th>${escapeHtml(h)}</th>`; });
+    html += '</tr></thead>';
+  }
+  if (rows.length > 0) {
+    html += '<tbody>';
+    rows.forEach(row => {
+      html += '<tr>';
+      (row || []).forEach(cell => { html += `<td>${escapeHtml(String(cell))}</td>`; });
+      html += '</tr>';
+    });
+    html += '</tbody>';
+  }
+  html += '</table></div>';
+
+  container.innerHTML = html;
+}
+
+function checkEmptyState() {
+  const area = document.getElementById('canvas-area');
+  const cards = area.querySelectorAll('.component-card');
+  const emptyState = area.querySelector('.empty-state');
+
+  if (cards.length === 0 && !emptyState) {
+    area.innerHTML = `
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">🎨</div>
+        <h2>Canvas is empty</h2>
+        <p>Components rendered by the agent will appear here in real-time.</p>
+      </div>
+    `;
+  }
+}
+
+// ─── Theme ───
+function toggleTheme() {
+  const body = document.body;
+  const current = body.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : 'dark';
+  body.setAttribute('data-theme', next);
+
+  const btn = document.querySelector('.header-actions button:last-child');
+  btn.textContent = next === 'dark' ? '🌙' : '☀️';
+
+  localStorage.setItem('manusclaw-canvas-theme', next);
+
+  // Re-render charts with new theme
+  requestSync();
+}
+
+(function() {
+  const saved = localStorage.getItem('manusclaw-canvas-theme');
+  if (saved) {
+    document.body.setAttribute('data-theme', saved);
+    const btn = document.querySelector('.header-actions button:last-child');
+    if (btn) btn.textContent = saved === 'dark' ? '🌙' : '☀️';
+  }
+})();
+
+// ─── Init ───
+connectCanvas();
+</script>
+</body>
+</html>

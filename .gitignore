@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+.env
+
+# Config with secrets (keep config.toml.example instead)
+# config.toml  # don't ignore the example config
+
+# Logs
+logs/
+*.log
+
+# Workspace outputs
+workspace/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Playwright
+playwright-report/
+test-results/
+
+# plan
+plan.md
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/

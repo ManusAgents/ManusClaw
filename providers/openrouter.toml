@@ -1,0 +1,14 @@
+# OpenRouter (Paid / API)
+# Access 200+ models with a single API key.
+
+[llm]
+provider = "universal"
+base_url = "https://openrouter.ai/api/v1"
+api_key = "sk-or-v1-YOUR-OPENROUTER-KEY"
+model = "anthropic/claude-3.5-sonnet"
+max_tokens = 8192
+temperature = 0.0
+
+[llm.extra_headers]
+"HTTP-Referer" = "https://github.com/The-JDdev/ManusClaw"
+"X-Title" = "ManusClaw"

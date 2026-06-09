@@ -1,0 +1,106 @@
+Modified MIT License
+
+Copyright (c) 2025-2026 The-JDdev (SHS Lab)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+1. FREE AND PERSONAL USE
+
+   The Software may be freely used, modified, and distributed for personal,
+   educational, internal, non-commercial, and open-source purposes without
+   any requirement to provide attribution, credit, or acknowledgment to the
+   original creator. This includes but is not limited to:
+   - Personal projects, experimentation, and learning
+   - Internal use within organizations for non-revenue-generating purposes
+   - Open-source projects released under any OSI-approved license
+   - Academic and research use
+   - Contributing modifications back to this project
+
+   No credit, attribution, or notice is required in these cases.
+
+2. COMMERCIAL AND PRODUCTIZED USE
+
+   If the Software, whether in original or modified form, is incorporated
+   into a commercial product, sold as a service, offered as a SaaS
+   (Software-as-a-Service) platform, or otherwise used for direct or
+   indirect commercial revenue generation, the following conditions apply:
+
+   (a) Clear and prominent credit must be given to the original creator in
+       at least ONE of the following locations:
+       - The product's "About" page, credits section, or documentation
+       - The product's README or equivalent documentation
+       - A visible acknowledgment within the product's user interface
+       - The product's website or landing page
+
+       Such credit must read as follows:
+       "This product is built upon ManusClaw, created by The-JDdev (SHS Lab)."
+
+   (b) A link to the original repository (https://github.com/ManusClawAI/ManusClaw)
+       must be included alongside the credit where feasible.
+
+   (c) Modifications must be clearly noted. If the Software has been
+       substantially modified, this fact must be disclosed.
+
+   For the purposes of this section, "commercial use" includes but is not
+   limited to: selling the Software or derivative works, offering the Software
+   as a paid service, embedding the Software in a commercial product that is
+   sold or licensed, using the Software as a core component of a revenue-
+   generating SaaS platform, or using the Software to provide paid consulting,
+   development, or automation services where the Software is a deliverable.
+
+3. ENDORSEMENT AND NAME USE RESTRICTION
+
+   Without the prior written, explicit permission of the copyright holder
+   ("The-JDdev" / "SHS Lab"), the following is strictly prohibited:
+
+   (a) Using the names "ManusClaw", "ManusClaw AI", "The-JDdev", "JDdev",
+       "SHS Lab", "SHS Shobuj", or any confusingly similar name, logo,
+       trademark, or branding to market, advertise, endorse, or promote any
+       derivative product, service, or commercial offering.
+
+   (b) Representing or implying that the original creator endorses, sponsors,
+       approves of, or is affiliated with any derivative work.
+
+   (c) Registering any of the aforementioned names as trademarks, service
+       marks, or trade names without explicit written consent.
+
+   This restriction applies to all uses, whether commercial or non-commercial.
+
+4. NO LIABILITY
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+   IN NO EVENT SHALL THE AUTHORS, COPYRIGHT HOLDERS, OR CONTRIBUTORS BE LIABLE
+   FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+   CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
+   THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+   The user assumes all risks associated with the use of the Software. The
+   original creator makes no guarantees regarding the Software's performance,
+   reliability, accuracy, or suitability for any particular purpose. Use of
+   the Software for mission-critical, production, or high-stakes applications
+   is done entirely at the user's own risk.
+
+5. GENERAL PROVISIONS
+
+   (a) This license applies to all copies of the Software and all derivative
+       works thereof.
+
+   (b) If any provision of this license is held to be invalid or
+       unenforceable, the remaining provisions shall continue in full force
+       and effect.
+
+   (c) This license represents the complete agreement between the parties
+       regarding the Software and supersedes any prior agreements or
+       understandings.
+
+   (d) The copyright holder reserves the right to update or modify this
+       license for future versions of the Software. However, distributions
+       made under a specific version of this license shall remain governed
+       by that version.

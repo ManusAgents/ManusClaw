@@ -1,0 +1,11 @@
+# Ollama Cloud (API)
+# Requires an OLLAMA_API_KEY from your ollama.com account.
+# Uses the OpenAI-compatible endpoint.
+
+[llm]
+provider = "ollama" 
+base_url = "https://ollama.com/v1"
+api_key = "YOUR-OLLAMA-API-KEY"
+model = "gpt-oss:120b"
+max_tokens = 4096
+temperature = 0.0
