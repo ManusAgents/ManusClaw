@@ -27,6 +27,23 @@ _CACHE_SIZE = 64
 _IDLE_TTL = 300  # seconds
 
 
+def _safe_create_task(coro):
+    """Safely schedule an async cleanup coroutine.
+
+    Uses asyncio.get_running_loop() instead of the deprecated
+    asyncio.get_event_loop().create_task(). If no loop is running
+    (e.g., called from a sync context during shutdown), logs a warning
+    instead of crashing.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+        return loop.create_task(coro)
+    except RuntimeError:
+        # No running loop — can't schedule; best-effort log
+        logger.warning("No event loop for async cleanup — coroutine dropped")
+        return None
+
+
 @dataclass
 class AgentConfig:
     """Configuration for a single agent instance.
@@ -159,15 +176,28 @@ class AgentRegistry:
     def size(self) -> int:
         return len(self._cache)
 
-    def _evict_idle(self, now: float) -> None:
+    async def _evict_idle(self, now: float) -> None:
         """Remove agents that have been idle beyond TTL."""
         evict = [
             k for k, t in self._last_active.items()
             if now - t > self._idle_ttl
         ]
         for k in evict:
-            self._cache.pop(k, None)
+            agent = self._cache.pop(k, None)
             self._last_active.pop(k, None)
+            # FIX: Call cleanup on evicted agents to release resources
+            # (Bash subprocesses, DB connections, etc.)
+            if agent is not None and hasattr(agent, "cleanup"):
+                try:
+                    import asyncio as _asyncio
+                    coro = agent.cleanup()
+                    if _asyncio.iscoroutine(coro):
+                        # Best-effort: schedule cleanup but don't block eviction
+                        _safe_create_task(coro)
+                    else:
+                        coro  # synchronous cleanup — already executed
+                except Exception as e:
+                    logger.warning(f"[AgentRegistry] Cleanup error during eviction for {k}: {e}")
             logger.debug(f"[AgentRegistry] Evicted idle agent: {k}")
 
     def _evict_lru(self) -> None:
@@ -175,6 +205,15 @@ class AgentRegistry:
         while len(self._cache) >= self._cache_size:
             k, agent = self._cache.popitem(last=False)
             self._last_active.pop(k, None)
+            # FIX: Call cleanup on LRU-evicted agents too
+            if agent is not None and hasattr(agent, "cleanup"):
+                try:
+                    import asyncio as _asyncio
+                    coro = agent.cleanup()
+                    if _asyncio.iscoroutine(coro):
+                        _safe_create_task(coro)
+                except Exception as e:
+                    logger.warning(f"[AgentRegistry] Cleanup error during LRU eviction for {k}: {e}")
             logger.debug(f"[AgentRegistry] LRU evicted agent: {k}")
 
 
@@ -395,11 +434,20 @@ class AgentRouter:
         """Import a class from a dotted module path.
 
         Example: ``app.agent.manus.Manus`` → ``<class Manus>``
+
+        FIX: Sandboxed to only allow imports from the ``app.`` namespace
+        to prevent arbitrary code execution via class_path injection.
         """
         parts = dotted_path.rsplit(".", 1)
         if len(parts) != 2:
             raise ImportError(f"Invalid class path: {dotted_path}")
         module_path, class_name = parts
+        # FIX: Only allow imports from the app namespace to prevent
+        # arbitrary code execution via malicious class_path values.
+        if not module_path.startswith("app."):
+            raise ImportError(
+                f"Security: class path must start with 'app.' — got '{dotted_path}'"
+            )
         import importlib
         module = importlib.import_module(module_path)
         return getattr(module, class_name)

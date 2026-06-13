@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "manusclaw"
-version = "5.0.0"
+version = "5.1.0"
 description = "ManusClaw: Production-grade autonomous AI agent framework by The-JDdev"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -26,6 +26,7 @@ mistral = ["mistralai>=1.0"]
 bedrock = ["boto3>=1.34"]
 google = ["google-generativeai>=0.7"]
 ollama = ["ollama>=0.2.0"]
+litellm = ["litellm>=1.40"]
 
 # Tools
 browser = ["playwright>=1.44", "crawl4ai>=0.3"]
@@ -58,11 +59,41 @@ matrix = ["matrix-nio>=0.22"]
 # Companion apps
 companion = ["pystray>=0.19", "rumps>=0.2"]
 
+# Observability
+observability = [
+    "opentelemetry-api>=1.20",
+    "opentelemetry-sdk>=1.20",
+    "opentelemetry-exporter-otlp>=1.20",
+    "prometheus-client>=0.20",
+]
+
+# Git providers
+github = ["PyGithub>=2.3"]
+gitlab = ["python-gitlab>=4.6"]
+git-providers = ["manusclaw[github,gitlab]"]
+
+# File store (cloud backends)
+s3 = ["boto3>=1.34"]
+gcs = ["google-cloud-storage>=2.14"]
+cloud-storage = ["manusclaw[s3,gcs]"]
+
+# Database migrations
+migrations = ["alembic>=1.13"]
+
+# Templates
+templates = ["jinja2>=3.1"]
+
+# Async networking
+async-http = ["httpx>=0.27"]
+websockets-extra = ["websockets>=12.0"]
+
 # Everything
-all = ["manusclaw[mistral,bedrock,google,ollama,browser,search,server,cli,cron,viz]"]
+all = [
+    "manusclaw[mistral,bedrock,google,ollama,litellm,browser,search,server,cli,cron,viz,observability,github,gitlab,templates,migrations,async-http,websockets-extra]",
+]
 
 # All new features
-all-plus = ["manusclaw[all,voice,ssh,gmail,matrix,companion]"]
+all-plus = ["manusclaw[all,voice,ssh,gmail,matrix,companion,s3,gcs]"]
 
 [project.scripts]
 manusclaw = "app.cli:main"

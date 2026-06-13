@@ -182,10 +182,29 @@ class UniversalClient:
         # FIX: Use adaptive timeout — long-thinking models need much more time
         configured_timeout = kwargs.get("timeout", 300)
         self._timeout_seconds = _get_adaptive_timeout(model, configured_timeout)
+        # FIX: Persistent session for connection pool reuse.
+        # Creating a new aiohttp.ClientSession per request discards the connection
+        # pool, causing TCP/TLS handshake overhead on every call. We now lazily
+        # create a session and reuse it for all subsequent requests.
+        self._session: Optional[Any] = None  # aiohttp.ClientSession
         logger.info(
             f"[UniversalClient] model={model} timeout={self._timeout_seconds}s "
             f"(long_thinking={_is_long_thinking_model(model)})"
         )
+
+    async def _get_session(self) -> Any:
+        """Lazily create and reuse an aiohttp.ClientSession for connection pooling."""
+        import aiohttp
+        if self._session is None or self._session.closed:
+            timeout = aiohttp.ClientTimeout(total=self._timeout_seconds)
+            self._session = aiohttp.ClientSession(timeout=timeout)
+        return self._session
+
+    async def cleanup(self) -> None:
+        """Close the persistent aiohttp session. Call when shutting down."""
+        if self._session and not self._session.closed:
+            await self._session.close()
+            self._session = None
 
     async def _post(self, payload: dict[str, Any], api_key: Optional[str] = None) -> dict[str, Any]:
         import aiohttp
@@ -196,23 +215,22 @@ class UniversalClient:
             **self._extra_headers,
         }
         url = f"{self.base_url}/chat/completions"
-        timeout = aiohttp.ClientTimeout(total=self._timeout_seconds)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            # FIX: Long-wait progress monitoring — log heartbeats during long waits
-            logger.info(f"[UniversalClient] Sending request to {url} (timeout={self._timeout_seconds}s)")
-            start_time = asyncio.get_event_loop().time()
-            async with session.post(url, json=payload, headers=headers) as resp:
-                elapsed = asyncio.get_event_loop().time() - start_time
-                logger.info(f"[UniversalClient] Response received after {elapsed:.1f}s (status={resp.status})")
-                if resp.status == 429:
-                    raise RateLimitError("Rate limited")
-                if resp.status == 400:
-                    body = await resp.text()
-                    if "context" in body.lower() or "token" in body.lower():
-                        raise TokenLimitExceeded(body)
-                    raise ValueError(f"Bad request: {body}")
-                resp.raise_for_status()
-                return await resp.json()
+        session = await self._get_session()
+        # FIX: Long-wait progress monitoring — log heartbeats during long waits
+        logger.info(f"[UniversalClient] Sending request to {url} (timeout={self._timeout_seconds}s)")
+        start_time = asyncio.get_event_loop().time()
+        async with session.post(url, json=payload, headers=headers) as resp:
+            elapsed = asyncio.get_event_loop().time() - start_time
+            logger.info(f"[UniversalClient] Response received after {elapsed:.1f}s (status={resp.status})")
+            if resp.status == 429:
+                raise RateLimitError("Rate limited")
+            if resp.status == 400:
+                body = await resp.text()
+                if "context" in body.lower() or "token" in body.lower():
+                    raise TokenLimitExceeded(body)
+                raise ValueError(f"Bad request: {body}")
+            resp.raise_for_status()
+            return await resp.json()
 
     async def chat(self, messages: list[dict[str, Any]], tools: Optional[list[dict[str, Any]]] = None,
                    api_key: Optional[str] = None) -> dict[str, Any]:
@@ -342,8 +360,13 @@ class AnthropicClient:
                    api_key: Optional[str] = None) -> dict[str, Any]:
         import json
         from anthropic import AsyncAnthropic
-        # FIX: Support credential pool key rotation
-        client = AsyncAnthropic(api_key=api_key) if api_key else self._c
+        # FIX: Reuse the existing client's connection pool when no alternate key is provided.
+        # Previously, creating a new AsyncAnthropic per call discarded the connection pool,
+        # causing connection churn and potential exhaustion under high concurrency.
+        client = self._c
+        if api_key and api_key != self._c.api_key:
+            # Different key — create a one-off client (rare, only on credential rotation)
+            client = AsyncAnthropic(api_key=api_key)
         system = next((m["content"] for m in messages if m["role"] == "system"), None)
         conv = [m for m in messages if m["role"] != "system"]
         # FIX: Convert OpenAI-format messages to Anthropic format

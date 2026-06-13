@@ -18,7 +18,10 @@ from app.tool.terminate import Terminate
 # Constants
 # ---------------------------------------------------------------------------
 
-MAX_TOOL_RETRIES = 4
+# FIX: MAX_TOOL_RETRIES made configurable via environment variable.
+# 4 retries was too aggressive for transient failures.
+import os
+MAX_TOOL_RETRIES = int(os.getenv("MANUSCLAW_MAX_TOOL_RETRIES", "3"))
 TOOL_RETRY_BASE  = 1.0
 TOOL_RETRY_MAX   = 20.0
 
@@ -222,9 +225,11 @@ tool or different arguments — DO NOT repeat the same failing call.
                             f"{corrected_name}({self._fmt_args(corrected_args)})"
                         )
                         name, args = corrected_name, corrected_args
-                        tool_call_id = corrected_tc.id  # Fix: update ID to match corrected call
+                        # FIX: Update tool_call_id to the corrected call's ID so that
+                        # the next tool message has a consistent chain.
+                        tool_call_id = corrected_tc.id
                         await asyncio.sleep(min(wait, TOOL_RETRY_MAX))
-                        wait = wait * 2 + random.uniform(0, 0.5)  # Fix: additive backoff
+                        wait = wait * 2 + random.uniform(0, 0.5)
                         continue
                     else:
                         logger.warning(
@@ -296,17 +301,24 @@ tool or different arguments — DO NOT repeat the same failing call.
     # Helpers
     # ------------------------------------------------------------------
 
+    # FIX: Prefix patterns for injected/system messages that should be
+    # skipped when extracting the current goal. Centralised here so all
+    # injected prompt types are handled consistently.
+    _SKIP_GOAL_PREFIXES = (
+        "┌─ TOOL INTELLIGENCE",
+        "\n┌─ TOOL INTELLIGENCE",
+        "[SELF-CHECK]",
+        "[Context refresh",
+        "⚠ Tool",           # retry hint messages
+        "[IDENTITY REINFORCEMENT",  # identity guard injections
+    )
+
     def _extract_current_goal(self) -> str:
         for m in reversed(self.memory.messages):
             if m.role.value in ("user", "assistant") and m.content:
                 content = m.content.strip()
-                if content.startswith("┌─ TOOL INTELLIGENCE"):
-                    continue
-                if content.startswith("\n┌─ TOOL INTELLIGENCE"):
-                    continue
-                if content.startswith("[SELF-CHECK]"):
-                    continue
-                if content.startswith("[Context refresh"):
+                # FIX: Use centralised prefix list instead of scattered checks
+                if any(content.startswith(prefix) for prefix in self._SKIP_GOAL_PREFIXES):
                     continue
                 return content[:300]
         return "general task"

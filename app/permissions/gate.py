@@ -71,6 +71,10 @@ _DENY_COMMAND_PATTERNS = [
     r"rm\s+-[rRf]+\s+/\s*$",
     r"rm\s+-[rRf]+\s+/\*",
     r"rm\s+--no-preserve-root",
+    # FIX: Additional catastrophic patterns
+    r"chmod\s+777\s+/",               # chmod 777 on root
+    r"chown\s+\S+\s+/\s*$",            # chown on root
+    r"sudo\s+rm\s+-[rRf]+\s+/",       # sudo rm -rf /
     # Fork bomb
     r":\(\)\s*\{.*:\|:.*\}",
     # Zero out block devices
@@ -177,7 +181,12 @@ class PermissionGate:
 
     def _approval_key(self, tool_name: str, args: dict) -> str:
         content = self._extract_content(tool_name, args) or str(sorted(args.items()))
-        return f"{tool_name}:{hash(content[:200])}"
+        # FIX: Use full content hash instead of truncated hash to prevent collisions.
+        # Python's hash() is not cryptographic and truncated to 200 chars causes collisions.
+        # Use hashlib for collision-resistant approval keys.
+        import hashlib
+        content_hash = hashlib.sha256(content.encode()).hexdigest()[:32]
+        return f"{tool_name}:{content_hash}"
 
     # ------------------------------------------------------------------
     # Plan Mode interactive prompt

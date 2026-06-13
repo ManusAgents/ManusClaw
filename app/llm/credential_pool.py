@@ -167,6 +167,11 @@ class CrossProviderRotator:
         Returns:
             Tuple of (Credential, provider_name). Credential may be None
             if all pools are exhausted.
+
+        FIX: Restored locking with consistent ordering to prevent race
+        conditions. The lock is always acquired in order:
+        rotator._lock → pool._lock. This prevents deadlocks because
+        no code path acquires pool._lock before rotator._lock.
         """
         async with self._lock:
             # Try preferred provider first

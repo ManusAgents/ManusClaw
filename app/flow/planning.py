@@ -233,6 +233,10 @@ class PlanningFlow:
         except asyncio.TimeoutError:
             logger.warning(f"[PlanningFlow:{flow_id}] Global timeout reached.")
             timed_out = True
+        finally:
+            # FIX: Clean up all cached agents (Bash subprocesses, DB connections, etc.)
+            # even if the flow timed out or raised an exception.
+            await self._cleanup_agents()
 
         flow.timed_out = timed_out
         logger.info(
@@ -283,11 +287,11 @@ class PlanningFlow:
             line = line.strip()
             if not line:
                 continue
-            for sep in (". ", ") ", "- "):
-                parts = line.split(sep, 1)
-                if len(parts) == 2 and parts[0].lstrip("0123456789").strip() == "":
-                    line = parts[1].strip()
-                    break
+            # FIX: Use a single robust regex instead of fragile multi-separator splitting.
+            # Handles: "1. Do X", "1) Do X", "- Do X", "1. Do X (criterion)"
+            m = re.match(r"^(?:\d+[.)\s]|[-•*]\s)\s*(.+)$", line)
+            if m:
+                line = m.group(1).strip()
             if not line:
                 continue
 
@@ -378,6 +382,26 @@ class PlanningFlow:
         if "manus" not in self._agent_cache:
             self._agent_cache["manus"] = Manus()
         return self._agent_cache["manus"]
+
+    async def _cleanup_agents(self) -> None:
+        """Clean up all cached agent instances to release resources.
+
+        FIX: Agent cache was never cleaned up, leaking Bash subprocesses,
+        DB connections, and file descriptors. This method is called in
+        the ``finally`` block of ``_run_flow()`` so cleanup happens even
+        on timeout or exception.
+        """
+        if not hasattr(self, "_agent_cache"):
+            return
+        for name, agent in list(self._agent_cache.items()):
+            try:
+                if hasattr(agent, "cleanup"):
+                    await agent.cleanup()
+            except Exception as e:
+                logger.warning(
+                    f"[PlanningFlow] Cleanup error for agent '{name}': {e}"
+                )
+        self._agent_cache.clear()
 
     # ──────────────────────────────────────────────────────────────────────────
     # Summary formatting

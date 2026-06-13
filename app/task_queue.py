@@ -122,6 +122,12 @@ class TaskQueue:
         self._running = False
         self._task_executor: Optional[Callable] = None
         self._active_tasks: dict[str, asyncio.Task] = {}
+        # FIX: Persistent connection instead of opening new one per write.
+        # Reusing a single connection dramatically reduces I/O overhead.
+        self._conn: Optional[sqlite3.Connection] = None
+        # FIX: Track recently submitted task prompts for deduplication.
+        self._recent_prompts: dict[str, float] = {}  # prompt_hash -> submit_time
+        self._dedup_window_s: int = 60  # 60-second dedup window
         self._init_db()
 
     def _init_db(self) -> None:
@@ -140,9 +146,42 @@ class TaskQueue:
     # CRUD
     # ------------------------------------------------------------------
 
+    def _get_conn(self) -> sqlite3.Connection:
+        """Get or create the persistent database connection."""
+        if self._conn is None:
+            self._conn = sqlite3.connect(str(self._db_path))
+        return self._conn
+
+    def _close_conn(self) -> None:
+        """Close the persistent connection."""
+        if self._conn:
+            self._conn.close()
+            self._conn = None
+
     async def submit(self, prompt: str, priority: TaskPriority = TaskPriority.NORMAL,
                      metadata: Optional[dict] = None) -> TaskEntry:
-        """Submit a new task to the queue."""
+        """Submit a new task to the queue.
+
+        FIX: Includes deduplication — if an identical prompt was submitted
+        within the dedup window, returns the existing task instead of
+        creating a duplicate.
+        """
+        import hashlib
+        prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()
+        now = time.time()
+        # Check for duplicate
+        existing_id = self._recent_prompts.get(prompt_hash)
+        if existing_id:
+            existing = await self._load(existing_id)
+            if existing and existing.status == TaskStatus.QUEUED:
+                logger.info(f"[TaskQueue] Duplicate task detected, returning existing: {existing_id}")
+                return existing
+        # Prune old entries from dedup cache
+        self._recent_prompts = {
+            k: v for k, v in self._recent_prompts.items()
+            if now - v < self._dedup_window_s
+        }
+
         task = TaskEntry(
             prompt=prompt,
             status=TaskStatus.QUEUED,
@@ -150,47 +189,48 @@ class TaskQueue:
             metadata=metadata or {},
         )
         await self._save(task)
+        self._recent_prompts[prompt_hash] = task.id
         logger.info(f"[TaskQueue] Submitted task {task.id}: {prompt[:80]}...")
         return task
 
     async def _save(self, task: TaskEntry) -> None:
-        """Persist task to SQLite."""
+        """Persist task to SQLite — FIX: uses persistent connection."""
         def _write():
-            with sqlite3.connect(str(self._db_path)) as conn:
-                conn.execute(
-                    "INSERT OR REPLACE INTO tasks (id, data, updated_at) VALUES (?, ?, ?)",
-                    (task.id, json.dumps(task.to_dict()), time.time()),
-                )
-                conn.commit()
+            conn = self._get_conn()
+            conn.execute(
+                "INSERT OR REPLACE INTO tasks (id, data, updated_at) VALUES (?, ?, ?)",
+                (task.id, json.dumps(task.to_dict()), time.time()),
+            )
+            conn.commit()
         await asyncio.to_thread(_write)
 
     async def _load(self, task_id: str) -> Optional[TaskEntry]:
-        """Load a task from SQLite."""
+        """Load a task from SQLite — FIX: uses persistent connection."""
         def _read():
-            with sqlite3.connect(str(self._db_path)) as conn:
-                row = conn.execute(
-                    "SELECT data FROM tasks WHERE id = ?", (task_id,)
-                ).fetchone()
-                return row
+            conn = self._get_conn()
+            row = conn.execute(
+                "SELECT data FROM tasks WHERE id = ?", (task_id,)
+            ).fetchone()
+            return row
         row = await asyncio.to_thread(_read)
         if not row:
             return None
         return TaskEntry.from_dict(json.loads(row[0]))
 
     async def list_tasks(self, status: Optional[TaskStatus] = None) -> list[TaskEntry]:
-        """List all tasks, optionally filtered by status."""
+        """List all tasks, optionally filtered by status — FIX: uses persistent connection."""
         def _read():
-            with sqlite3.connect(str(self._db_path)) as conn:
-                if status:
-                    rows = conn.execute(
-                        "SELECT data FROM tasks WHERE json_extract(data, '$.status') = ? ORDER BY updated_at DESC",
-                        (status.value,),
-                    ).fetchall()
-                else:
-                    rows = conn.execute(
-                        "SELECT data FROM tasks ORDER BY updated_at DESC"
-                    ).fetchall()
-                return rows
+            conn = self._get_conn()
+            if status:
+                rows = conn.execute(
+                    "SELECT data FROM tasks WHERE json_extract(data, '$.status') = ? ORDER BY updated_at DESC",
+                    (status.value,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT data FROM tasks ORDER BY updated_at DESC"
+                ).fetchall()
+            return rows
         rows = await asyncio.to_thread(_read)
         return [TaskEntry.from_dict(json.loads(r[0])) for r in rows]
 
@@ -245,13 +285,13 @@ class TaskQueue:
         """Remove completed/failed tasks older than N hours."""
         cutoff = time.time() - (older_than_hours * 3600)
         def _clean():
-            with sqlite3.connect(str(self._db_path)) as conn:
-                cursor = conn.execute(
-                    "DELETE FROM tasks WHERE json_extract(data, '$.status') IN ('completed', 'failed', 'cancelled') AND updated_at < ?",
-                    (cutoff,),
-                )
-                conn.commit()
-                return cursor.rowcount
+            conn = self._get_conn()
+            cursor = conn.execute(
+                "DELETE FROM tasks WHERE json_extract(data, '$.status') IN ('completed', 'failed', 'cancelled') AND updated_at < ?",
+                (cutoff,),
+            )
+            conn.commit()
+            return cursor.rowcount
         return await asyncio.to_thread(_clean)
 
     # ------------------------------------------------------------------
@@ -339,14 +379,14 @@ class TaskQueue:
                 await asyncio.sleep(5)
 
     async def _next_queued_task(self) -> Optional[TaskEntry]:
-        """Get the highest-priority queued task (FIFO within same priority)."""
+        """Get the highest-priority queued task (FIFO within same priority) — FIX: persistent connection."""
         def _read():
-            with sqlite3.connect(str(self._db_path)) as conn:
-                row = conn.execute(
-                    "SELECT data FROM tasks WHERE json_extract(data, '$.status') = 'queued' "
-                    "ORDER BY json_extract(data, '$.priority') DESC, updated_at ASC LIMIT 1"
-                ).fetchone()
-                return row
+            conn = self._get_conn()
+            row = conn.execute(
+                "SELECT data FROM tasks WHERE json_extract(data, '$.status') = 'queued' "
+                "ORDER BY json_extract(data, '$.priority') DESC, updated_at ASC LIMIT 1"
+            ).fetchone()
+            return row
         row = await asyncio.to_thread(_read)
         if not row:
             return None

@@ -45,6 +45,21 @@ class AppEnv(str, Enum):
     TEST = "test"
 
 
+class LLMStreamingConfig(BaseModel):
+    enabled:       bool = True
+    buffer_size:   int  = 4096
+    chunk_timeout: int  = 30
+
+
+class LLMFallbackConfig(BaseModel):
+    enabled:             bool          = False
+    chain:               list[str]     = Field(default_factory=lambda: ["gpt-4o", "claude-3-5-sonnet"])
+    cooldown_s:          float         = 60.0
+    cooldown_multiplier: float         = 2.0
+    max_cooldown_s:      float         = 600.0
+    triggers:            list[str]     = Field(default_factory=lambda: ["rate_limit", "service_unavailable", "context_window", "quota"])
+
+
 class LLMConfig(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
@@ -58,11 +73,19 @@ class LLMConfig(BaseModel):
     timeout:        int            = 1800   # 30 minutes — safe for deep-reasoning models (DeepSeek R1, o1, etc.)
     extra_headers:  dict[str, str] = Field(default_factory=dict)
     extra_api_keys: list[str]      = Field(default_factory=list)
+    streaming:      LLMStreamingConfig = Field(default_factory=LLMStreamingConfig)
+    fallback:       LLMFallbackConfig  = Field(default_factory=LLMFallbackConfig)
 
     @model_validator(mode="after")
     def _coerce_provider(self) -> "LLMConfig":
         safe = {"mock", "ollama", "lmstudio", "openai-compat", "universal", "gguf", "huggingface", "hf", ""}
-        if self.provider not in safe and not self.api_key and not self.base_url:
+        # FIX: Only silently coerce to mock if provider is NOT a known real provider.
+        # Previously, valid providers like "openai", "anthropic" were silently
+        # changed to "mock" when no API key was present in the config file,
+        # even though environment variables might provide keys later.
+        # Now we only coerce truly unknown/empty providers.
+        known_providers = {"openai", "anthropic", "google", "gemini", "mistral", "bedrock"}
+        if self.provider not in safe and self.provider not in known_providers and not self.api_key and not self.base_url:
             self.provider = "mock"
         return self
 
@@ -119,21 +142,121 @@ class SkinsConfig(BaseModel):
     border_color: str = "#FFD700"
 
 
+class SecurityConfig(BaseModel):
+    enabled:                bool       = True
+    analyzers:              list[str]  = Field(default_factory=lambda: ["pattern", "rails"])
+    confirmation_threshold: str        = "medium"
+    cipher_key:             Optional[str] = None
+
+
+class HooksConfig(BaseModel):
+    enabled:   bool       = True
+    auto_load: bool       = True
+    hook_dirs: list[str]  = Field(default_factory=lambda: ["~/.manusclaw/hooks"])
+    timeout_s: int        = 30
+
+
+class ContextConfig(BaseModel):
+    max_events:     int  = 200
+    max_tokens:     int  = 80000
+    condenser_type: str  = "rolling"
+
+
+class ConversationConfig(BaseModel):
+    max_iterations:    int  = 30
+    confirmation_mode: str  = "confirm_risky"
+    stuck_detection:   bool = True
+    stuck_threshold:   int  = 3
+
+
+class ObservabilityConfig(BaseModel):
+    tracing_enabled:  bool  = False
+    tracing_endpoint: str   = "http://localhost:4317"
+    tracing_service:  str   = "manusclaw"
+    metrics_enabled:  bool  = False
+    metrics_port:     int   = 9090
+    health_enabled:   bool  = True
+    health_path:      str   = "/health"
+
+
+class SecretsConfig(BaseModel):
+    backend:           Optional[str] = "file"
+    file_path:         Optional[str] = None
+    encryption_enabled: bool         = True
+
+
+class FileStoreConfig(BaseModel):
+    backend:    str           = "local"
+    base_dir:   Optional[str] = None
+    s3_bucket:  Optional[str] = None
+    s3_region:  str           = "us-east-1"
+    s3_endpoint: Optional[str] = None
+    gcs_bucket: Optional[str] = None
+
+
+class GitProvidersConfig(BaseModel):
+    default_provider:      str           = "github"
+    github_token:          Optional[str] = None
+    gitlab_token:          Optional[str] = None
+    gitlab_url:            str           = "https://gitlab.com"
+    azure_devops_token:    Optional[str] = None
+    azure_devops_org:      Optional[str] = None
+    bitbucket_username:    Optional[str] = None
+    bitbucket_app_password: Optional[str] = None
+    forgejo_url:           Optional[str] = None
+    forgejo_token:         Optional[str] = None
+
+
+class IntegrationsConfig(BaseModel):
+    jinja_templates_dir: str           = "~/.manusclaw/templates"
+    webhooks_enabled:    bool          = False
+    webhook_secret:      Optional[str] = None
+
+
+class ParallelExecutorConfig(BaseModel):
+    max_workers: int   = 4
+    timeout_s:   int   = 300
+
+
+class MigrationsConfig(BaseModel):
+    enabled:     bool          = True
+    auto_run:    bool          = False
+    database_url: Optional[str] = None
+
+
 class AppConfig(BaseModel):
     env:                  AppEnv          = AppEnv.DEV
-    llm:                  LLMConfig       = Field(default_factory=LLMConfig)
-    browser:              BrowserConfig   = Field(default_factory=BrowserConfig)
-    search:               SearchConfig    = Field(default_factory=SearchConfig)
-    sandbox:              SandboxConfig   = Field(default_factory=SandboxConfig)
-    mcp_servers:          list[MCPServerDef] = Field(default_factory=list)
-    runflow:              RunFlowConfig   = Field(default_factory=RunFlowConfig)
-    logging:              LoggingConfig   = Field(default_factory=LoggingConfig)
-    skins:                SkinsConfig     = Field(default_factory=SkinsConfig)
-    workspace_dir:        str             = "workspace"
-    max_steps:            int             = 30
-    token_budget:         int             = 0
-    auto_skill_threshold: int             = 5
-    redact_secrets:       bool            = False
+    llm:                  LLMConfig               = Field(default_factory=LLMConfig)
+    browser:              BrowserConfig            = Field(default_factory=BrowserConfig)
+    search:               SearchConfig             = Field(default_factory=SearchConfig)
+    sandbox:              SandboxConfig            = Field(default_factory=SandboxConfig)
+    mcp_servers:          list[MCPServerDef]        = Field(default_factory=list)
+    runflow:              RunFlowConfig            = Field(default_factory=RunFlowConfig)
+    logging:              LoggingConfig            = Field(default_factory=LoggingConfig)
+    skins:                SkinsConfig              = Field(default_factory=SkinsConfig)
+    security:             SecurityConfig           = Field(default_factory=SecurityConfig)
+    hooks:                HooksConfig              = Field(default_factory=HooksConfig)
+    context:              ContextConfig            = Field(default_factory=ContextConfig)
+    conversation:         ConversationConfig       = Field(default_factory=ConversationConfig)
+    observability:        ObservabilityConfig      = Field(default_factory=ObservabilityConfig)
+    secrets:              SecretsConfig            = Field(default_factory=SecretsConfig)
+    file_store:           FileStoreConfig          = Field(default_factory=FileStoreConfig)
+    git_providers:        GitProvidersConfig       = Field(default_factory=GitProvidersConfig)
+    integrations:         IntegrationsConfig       = Field(default_factory=IntegrationsConfig)
+    parallel_executor:    ParallelExecutorConfig   = Field(default_factory=ParallelExecutorConfig)
+    migrations:           MigrationsConfig         = Field(default_factory=MigrationsConfig)
+    workspace_dir:        str                      = "workspace"
+    max_steps:            int                      = 30
+    token_budget:         int                      = 0
+    auto_skill_threshold: int                      = 5
+    redact_secrets:       bool                     = False
+
+    model_config = {"arbitrary_types_allowed": True}
+
+    @classmethod
+    def get(cls) -> "AppConfig":
+        """Convenience: load config via the Config singleton."""
+        return Config.get()._data
 
 
 class Config:
@@ -149,6 +272,11 @@ class Config:
 
     @classmethod
     def get(cls, path: str = "config.toml") -> "Config":
+        # FIX: Thread-safety gap — the original checked _instance outside the lock
+        # which could lead to a race condition where two threads both see None.
+        # Double-checked locking pattern fixes this.
+        if cls._instance is not None:
+            return cls._instance
         with cls._lock:
             if cls._instance is None:
                 cls._instance = cls(path)
@@ -231,6 +359,25 @@ class Config:
             cfg.logging.redact_secrets
             or os.getenv("MANUSCLAW_REDACT", "").lower() in ("1", "true", "yes")
         )
+
+        # ── Overlay env vars for new modules ──────────────────────────────
+        if not cfg.security.cipher_key:
+            cfg.security.cipher_key = os.getenv("MANUSCLAW_CIPHER_KEY")
+        if not cfg.git_providers.github_token:
+            cfg.git_providers.github_token = os.getenv("GITHUB_TOKEN")
+        if not cfg.git_providers.gitlab_token:
+            cfg.git_providers.gitlab_token = os.getenv("GITLAB_TOKEN")
+        if not cfg.git_providers.azure_devops_token:
+            cfg.git_providers.azure_devops_token = os.getenv("AZURE_DEVOPS_TOKEN")
+        if not cfg.git_providers.forgejo_token:
+            cfg.git_providers.forgejo_token = os.getenv("FORGEJO_TOKEN")
+        if not cfg.migrations.database_url:
+            cfg.migrations.database_url = os.getenv("DATABASE_URL")
+        if not cfg.file_store.s3_bucket:
+            cfg.file_store.s3_bucket = os.getenv("S3_BUCKET")
+        if not cfg.file_store.gcs_bucket:
+            cfg.file_store.gcs_bucket = os.getenv("GCS_BUCKET")
+
         return cfg
 
     def _load_dotenv_chain(self) -> None:
@@ -304,9 +451,31 @@ class Config:
     @property
     def logging(self) -> LoggingConfig:   return self._data.logging
     @property
-    def skins(self) -> SkinsConfig:       return self._data.skins
+    def skins(self) -> SkinsConfig:              return self._data.skins
     @property
-    def workspace_dir(self) -> str:       return self._data.workspace_dir
+    def security(self) -> SecurityConfig:         return self._data.security
+    @property
+    def hooks(self) -> HooksConfig:                return self._data.hooks
+    @property
+    def context(self) -> ContextConfig:            return self._data.context
+    @property
+    def conversation(self) -> ConversationConfig:  return self._data.conversation
+    @property
+    def observability(self) -> ObservabilityConfig: return self._data.observability
+    @property
+    def secrets(self) -> SecretsConfig:            return self._data.secrets
+    @property
+    def file_store(self) -> FileStoreConfig:       return self._data.file_store
+    @property
+    def git_providers(self) -> GitProvidersConfig: return self._data.git_providers
+    @property
+    def integrations(self) -> IntegrationsConfig:  return self._data.integrations
+    @property
+    def parallel_executor(self) -> ParallelExecutorConfig: return self._data.parallel_executor
+    @property
+    def migrations(self) -> MigrationsConfig:      return self._data.migrations
+    @property
+    def workspace_dir(self) -> str:                return self._data.workspace_dir
     @property
     def max_steps(self) -> int:           return self._data.max_steps
     @property

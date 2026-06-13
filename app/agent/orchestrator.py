@@ -229,13 +229,25 @@ class MultiAgentOrchestrator:
 
         return order
 
+    # FIX: Extensible role registry — new roles can be registered at runtime
+    # without modifying the orchestrator source code.
+    _ROLE_REGISTRY: dict[str, type] = {}
+
+    @classmethod
+    def register_role(cls, name: str, role_class: type) -> None:
+        """Register a custom role class for use in the pipeline."""
+        cls._ROLE_REGISTRY[name] = role_class
+
     def _build_role(self, role_name: str):
-        role_map = {
+        # Built-in roles (always available)
+        builtin_map = {
             "product_manager": ProductManagerRole,
             "architect":       ArchitectRole,
             "engineer":        EngineerRole,
             "qa":              QARole,
         }
+        # Merge: registered roles override builtins of the same name
+        role_map = {**builtin_map, **self._ROLE_REGISTRY}
         cls = role_map.get(role_name)
         if cls is None:
             raise OrchestratorError(f"Unknown role: '{role_name}'", pipeline=self.pipeline)
@@ -273,8 +285,10 @@ class MultiAgentOrchestrator:
             coro = hook(*args)
             if asyncio.iscoroutine(coro):
                 task = asyncio.create_task(coro)
-                self._hook_tasks.append(task)  # Fix: store to prevent GC and lost exceptions
+                self._hook_tasks.append(task)
                 # Clean up completed tasks
                 self._hook_tasks = [t for t in self._hook_tasks if not t.done()]
         except Exception as e:
-            logger.debug(f"[Orchestrator] Hook error (non-fatal): {e}")
+            # FIX: Hook errors are no longer silently lost — log at WARNING level
+            # so operators can see and fix broken hooks.
+            logger.warning(f"[Orchestrator] Hook error: {e}")

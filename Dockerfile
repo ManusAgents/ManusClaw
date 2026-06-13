@@ -49,6 +49,6 @@ CMD []
 # WebSocket server port
 EXPOSE 8765
 
-# Healthcheck for server mode
+# Healthcheck for server mode — uses Python instead of curl (not installed in slim image)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8765/healthz || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8765/healthz')" || exit 1

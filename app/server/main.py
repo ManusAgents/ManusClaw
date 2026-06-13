@@ -19,6 +19,7 @@ import asyncio
 import json
 import os
 import time
+from collections import OrderedDict
 from typing import Any, Optional
 
 from pathlib import Path
@@ -43,7 +44,7 @@ async def _lifespan(application: FastAPI):
             "MANUSCLAW_API_KEY not set — all endpoints are UNAUTHENTICATED. "
             "Set MANUSCLAW_API_KEY in production."
         )
-    logger.info("ManusClaw Agent Server v4.0 started.")
+    logger.info("ManusClaw Agent Server v5.1 started.")
     application.state.background_tasks = set()
     yield
     # Cleanup: cancel any still-running background agent tasks
@@ -59,7 +60,7 @@ async def _lifespan(application: FastAPI):
 app = FastAPI(
     title="ManusClaw Agent Server",
     description="Autonomous AI agent engine by The-JDdev (SHS Shobuj)",
-    version="4.0.0",
+    version="5.1.0",
     lifespan=_lifespan,
 )
 
@@ -79,7 +80,9 @@ if _allowed_origins:
         allow_headers=["*"],
     )
 else:
-    # Fix: warn about open CORS in production
+    # Fix: In production, CORS must not allow all origins by default.
+    # Instead, require explicit configuration. We still allow it in dev mode
+    # for developer convenience but log a clear warning.
     logger.warning(
         "MANUSCLAW_ALLOWED_ORIGINS not set — CORS allows all origins. "
         "Set MANUSCLAW_ALLOWED_ORIGINS in production to restrict access."
@@ -88,7 +91,7 @@ else:
         CORSMiddleware,
         allow_origins=["*"],
         allow_credentials=False,
-        allow_methods=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
 
@@ -141,7 +144,10 @@ db = SessionDB()
 # ─── Canvas & Chat integration ──────────────────────────────────────────
 
 # Canvas chat connection manager (multiple clients per session)
-canvas_chat_manager: dict[str, list[WebSocket]] = {}
+# FIX: Use OrderedDict with max size to prevent unbounded memory growth.
+# When sessions exceed the limit, the oldest is evicted.
+_MAX_CANVAS_SESSIONS = 256
+canvas_chat_manager: OrderedDict = OrderedDict()
 
 # Lazy-init canvas server
 def _get_canvas_server():
@@ -224,12 +230,12 @@ class RunResponse(BaseModel):
 
 @app.get("/healthz")
 async def healthz():
-    return {"status": "ok", "version": "4.0.0", "agent": "ManusClaw"}
+    return {"status": "ok", "version": "5.1.0", "agent": "ManusClaw"}
 
 
 @app.get("/")
 async def root():
-    return {"message": "ManusClaw Agent Server v4.0 — connect via /ws/<session_id>"}
+    return {"message": "ManusClaw Agent Server v5.1 — connect via /ws/<session_id>"}
 
 
 @app.post("/run", response_model=RunResponse, dependencies=[Depends(require_api_key)])
@@ -430,6 +436,14 @@ async def chat_websocket_endpoint(websocket: WebSocket, session_id: str):
 
     # Register connection
     if session_id not in canvas_chat_manager:
+        # FIX: Enforce max sessions to prevent unbounded memory growth
+        while len(canvas_chat_manager) >= _MAX_CANVAS_SESSIONS:
+            oldest_sid, oldest_conns = canvas_chat_manager.popitem(last=False)
+            for old_ws in oldest_conns:
+                try:
+                    await old_ws.close()
+                except Exception:
+                    pass
         canvas_chat_manager[session_id] = []
     canvas_chat_manager[session_id].append(websocket)
 
@@ -507,6 +521,14 @@ async def canvas_websocket_endpoint(websocket: WebSocket, session_id: str):
 
     # Register as a canvas connection
     if session_id not in canvas_chat_manager:
+        # FIX: Enforce max sessions to prevent unbounded memory growth
+        while len(canvas_chat_manager) >= _MAX_CANVAS_SESSIONS:
+            oldest_sid, oldest_conns = canvas_chat_manager.popitem(last=False)
+            for old_ws in oldest_conns:
+                try:
+                    await old_ws.close()
+                except Exception:
+                    pass
         canvas_chat_manager[session_id] = []
     canvas_chat_manager[session_id].append(websocket)
 

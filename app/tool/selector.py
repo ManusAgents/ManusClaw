@@ -245,6 +245,42 @@ class ToolSelector:
         # Success resets the failure count for that tool
         self._failure_counts.pop(tool_name, None)
 
+    def get_stats(self) -> dict[str, dict]:
+        """Return per-tool usage and failure statistics.
+
+        FIX: Public API for accessing tool statistics. Previously, external
+        code (e.g., DataAnalysisAgent) accessed ``_stats`` directly, which
+        was a private attribute that didn't even exist — the real attributes
+        are ``_failure_counts`` and ``_recent_uses``. This public method
+        provides a stable interface that won't break if internals change.
+
+        Returns:
+            Dict mapping tool_name → {"failure_count": int, "recent_uses": int}.
+        """
+        return {
+            name: {
+                "failure_count": self._failure_counts.get(name, 0),
+                "recent_uses": sum(1 for t in self._recent_uses if t == name),
+            }
+            for name in self._tool_names
+        }
+
+    def set_stats(self, stats: dict[str, dict]) -> None:
+        """Restore statistics from a previous selector (e.g., after rebuild).
+
+        FIX: Public API for restoring tool statistics. This allows callers
+        like DataAnalysisAgent to carry over stats when rebuilding the
+        selector after adding new tools.
+
+        Args:
+            stats: Dict mapping tool_name → {"failure_count": int, ...}.
+        """
+        for name, data in stats.items():
+            if name in self._tool_names:
+                fc = data.get("failure_count", 0)
+                if fc > 0:
+                    self._failure_counts[name] = fc
+
     # ------------------------------------------------------------------
     # Heuristic scoring
     # ------------------------------------------------------------------

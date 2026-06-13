@@ -54,6 +54,12 @@ class DataAnalysisAgent(Manus):
         # Add DataVisualization on top of Manus's standard toolkit
         self.tools.add(DataVisualization())
 
-        # Rebuild the tool selector so it knows about the new tool
+        # FIX: Rebuild the tool selector so it knows about the new tool,
+        # but carry over the old selector's stats so that performance history
+        # (success/failure counts) is not lost across the rebuild.
         from app.tool.selector import ToolSelector
+        old_stats = self._selector.get_stats() if hasattr(self, "_selector") else {}
         self._selector = ToolSelector(tool_names=list(self.tools._tools.keys()))
+        # Restore any accumulated stats for tools that still exist
+        if old_stats:
+            self._selector.set_stats(old_stats)

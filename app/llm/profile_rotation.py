@@ -31,6 +31,7 @@ Usage::
 """
 
 import asyncio
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
@@ -229,6 +230,9 @@ class ProfileRotator:
         self._current_idx: int = 0
         self._lock = asyncio.Lock()
         self._session_profiles: dict[str, ModelProfile] = {}
+        # FIX: Bound the session profile cache to prevent unbounded memory growth.
+        # Oldest sessions are evicted when the limit is reached.
+        self._max_session_profiles: int = int(os.getenv("MANUSCLAW_MAX_SESSION_PROFILES", "128"))
 
     @property
     def profile(self) -> ModelProfile:
@@ -329,6 +333,14 @@ class ProfileRotator:
             session_id: The session identifier.
             profile: The model profile to use for this session.
         """
+        # FIX: Evict oldest session profiles if cache is at capacity
+        if len(self._session_profiles) >= self._max_session_profiles:
+            oldest_key = next(iter(self._session_profiles))
+            self._session_profiles.pop(oldest_key, None)
+            logger.debug(
+                f"[ProfileRotator] Evicted session profile for {oldest_key} "
+                f"(cache at capacity {self._max_session_profiles})"
+            )
         self._session_profiles[session_id] = profile
         logger.debug(
             f"[ProfileRotator] Set profile '{profile.name}' for session {session_id}"

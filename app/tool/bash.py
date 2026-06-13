@@ -149,6 +149,18 @@ class Bash(BaseTool):
     def __init__(self) -> None:
         self._process: Optional[asyncio.subprocess.Process] = None
         self._lock = asyncio.Lock()
+        # FIX: Register atexit handler to kill orphaned bash processes
+        # if the Python process crashes without calling cleanup().
+        import atexit
+        atexit.register(self._sync_kill)
+
+    def _sync_kill(self) -> None:
+        """Synchronous atexit handler — kills the bash subprocess on process exit."""
+        if self._process and self._process.returncode is None:
+            try:
+                self._process.kill()
+            except Exception:
+                pass
 
     async def execute(
         self,

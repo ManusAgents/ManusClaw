@@ -122,6 +122,10 @@ class CronScheduler:
             data = _yaml.safe_load(_JOBS_FILE.read_text()) or {}
             for job_id, d in data.items():
                 kwargs = {k: v for k, v in d.items() if k != "job_id"}
+                # FIX: Restore webhook_secret from environment variable
+                # instead of reading the REDACTED placeholder from YAML.
+                if kwargs.get("webhook_secret") == "REDACTED_USE_ENV":
+                    kwargs["webhook_secret"] = os.getenv("MANUSCLAW_WEBHOOK_SECRET", "")
                 job = CronJob(job_id=job_id, **kwargs)
                 self._jobs[job_id] = job
             logger.info(f"[Cron] Loaded {len(self._jobs)} jobs")
@@ -134,10 +138,16 @@ class CronScheduler:
             return
         try:
             _JOBS_FILE.parent.mkdir(parents=True, exist_ok=True)
-            data = {
-                jid: {k: v for k, v in vars(j).items() if k != "job_id"}
-                for jid, j in self._jobs.items()
-            }
+            # FIX: Don't persist webhook_secret in plaintext YAML.
+            # Instead, store a placeholder and retrieve the actual secret
+            # from the MANUSCLAW_WEBHOOK_SECRET env var at load time.
+            data = {}
+            for jid, j in self._jobs.items():
+                job_data = {k: v for k, v in vars(j).items() if k != "job_id"}
+                # Redact webhook_secret before persisting
+                if job_data.get("webhook_secret"):
+                    job_data["webhook_secret"] = "REDACTED_USE_ENV"
+                data[jid] = job_data
             _JOBS_FILE.write_text(_yaml.dump(data, default_flow_style=False))
         except Exception as e:
             logger.warning(f"[Cron] Could not save jobs: {e}")
@@ -230,6 +240,8 @@ class CronScheduler:
         job.run_count += 1
         job.update_next_run()
         self._save_jobs()
+        agent = None
+        gw = None
         try:
             from app.agent.manus import Manus
             agent = Manus()
@@ -252,8 +264,8 @@ class CronScheduler:
                     continue  # Already sent to primary
                 try:
                     from app.messaging.gateway import MessagingGateway
-                    gw = MessagingGateway(use_router=True)
-                    await gw.send(platform, channel_id,
+                    target_gw = MessagingGateway(use_router=True)
+                    await target_gw.send(platform, channel_id,
                                   f"[Cron: {job.name}]\n{result[:3000]}")
                 except Exception as e:
                     logger.warning(
@@ -279,6 +291,19 @@ class CronScheduler:
 
         except Exception as e:
             logger.error(f"[Cron] Job {job.name!r} failed: {e}")
+        finally:
+            # FIX: Clean up agent and gateway to release resources
+            # (Bash subprocesses, DB connections, adapter connections, etc.)
+            if agent is not None and hasattr(agent, "cleanup"):
+                try:
+                    await agent.cleanup()
+                except Exception as e:
+                    logger.warning(f"[Cron] Agent cleanup error for job {job.name!r}: {e}")
+            if gw is not None:
+                try:
+                    await gw.stop_all()
+                except Exception as e:
+                    logger.warning(f"[Cron] Gateway shutdown error for job {job.name!r}: {e}")
 
     async def _deliver_webhook(self, job: CronJob, result: str) -> None:
         """Deliver cron job results to a webhook URL.

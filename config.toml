@@ -12,6 +12,19 @@ temperature  = 0.0
 max_retries  = 6
 timeout      = 1800   # 30 minutes — safe for deep-reasoning models (DeepSeek R1, o1, etc.)
 
+[llm.streaming]
+enabled      = true
+buffer_size  = 4096     # backpressure buffer in bytes
+chunk_timeout = 30      # seconds to wait for next chunk before emitting done
+
+[llm.fallback]
+enabled             = false
+chain               = ["gpt-4o", "claude-3-5-sonnet"]
+cooldown_s          = 60.0
+cooldown_multiplier = 2.0
+max_cooldown_s      = 600.0
+# triggers = ["rate_limit", "service_unavailable", "context_window", "quota"]
+
 [browser]
 headless          = true
 disable_security  = false
@@ -31,6 +44,10 @@ timeout      = 30
 enable_data_analysis = false
 timeout = 7200
 
+# ── Top-level agent defaults ────────────────────────────────────────────────
+workspace_dir = "workspace"
+max_steps     = 30
+
 [ssh]
 # SSH remote gateway control (requires asyncssh)
 enabled            = false
@@ -39,5 +56,96 @@ host               = "0.0.0.0"
 # host_key_path      = "~/.manusclaw/ssh/host_key"
 # authorized_keys_path = "~/.manusclaw/ssh/authorized_keys"
 
-workspace_dir = "workspace"
-max_steps     = 30
+# ── Security ──────────────────────────────────────────────────────────────────
+
+[security]
+enabled = true
+# analyzers: "pattern", "rails", "llm", "ensemble"
+analyzers = ["pattern", "rails"]
+confirmation_threshold = "medium"   # "never", "low", "medium", "high"
+# cipher_key = ""                   # Fernet key; prefer env var MANUSCLAW_CIPHER_KEY
+
+# ── Hooks ─────────────────────────────────────────────────────────────────────
+
+[hooks]
+enabled    = true
+auto_load  = true
+# hook_dirs = ["~/.manusclaw/hooks"]
+timeout_s  = 30           # per-hook timeout in seconds
+
+# ── Context (Condenser) ──────────────────────────────────────────────────────
+
+[context]
+max_events     = 200       # max events before condensation triggers
+max_tokens     = 80000     # max context tokens
+condenser_type = "rolling" # "noop", "rolling", "llm_summarizing"
+
+# ── Conversation ──────────────────────────────────────────────────────────────
+
+[conversation]
+max_iterations     = 30
+confirmation_mode  = "confirm_risky"  # "never_confirm", "confirm_risky"
+stuck_detection    = true
+stuck_threshold    = 3                # repeated-action count before stuck flag
+
+# ── Observability ─────────────────────────────────────────────────────────────
+
+[observability]
+tracing_enabled  = false
+tracing_endpoint = "http://localhost:4317"   # OTLP gRPC endpoint
+tracing_service  = "manusclaw"
+metrics_enabled  = false
+metrics_port     = 9090
+health_enabled   = true
+health_path      = "/health"
+
+# ── Secrets Store ─────────────────────────────────────────────────────────────
+
+[secrets]
+backend = "file"                     # "file", "env"
+# file_path = "~/.manusclaw/secrets/secrets.json"
+encryption_enabled = true
+
+# ── File Store ────────────────────────────────────────────────────────────────
+
+[file_store]
+backend = "local"                    # "local", "s3", "gcs", "memory"
+# base_dir = "~/.manusclaw/files"
+# s3_bucket = ""
+# s3_region = "us-east-1"
+# s3_endpoint = ""                   # for MinIO etc.
+# gcs_bucket = ""
+
+# ── Git Providers ─────────────────────────────────────────────────────────────
+
+[git_providers]
+default_provider = "github"
+# github_token = ""                  # prefer env var GITHUB_TOKEN
+# gitlab_token = ""                  # prefer env var GITLAB_TOKEN
+# gitlab_url   = "https://gitlab.com"
+# azure_devops_token = ""
+# azure_devops_org   = ""
+# bitbucket_username = ""
+# bitbucket_app_password = ""
+# forgejo_url   = ""
+# forgejo_token = ""
+
+# ── Integrations ──────────────────────────────────────────────────────────────
+
+[integrations]
+jinja_templates_dir = "~/.manusclaw/templates"
+webhooks_enabled    = false
+# webhook_secret     = ""
+
+# ── Parallel Executor ─────────────────────────────────────────────────────────
+
+[parallel_executor]
+max_workers = 4
+timeout_s   = 300               # per-task timeout
+
+# ── Migrations ────────────────────────────────────────────────────────────────
+
+[migrations]
+enabled    = true
+auto_run   = false              # run migrations on startup
+# database_url = ""             # prefer env var DATABASE_URL

@@ -27,6 +27,23 @@ _CACHE_SIZE = 128
 _IDLE_TTL = 300  # seconds
 
 
+def _safe_create_task(coro):
+    """Safely schedule an async cleanup coroutine.
+
+    Uses asyncio.get_running_loop() instead of the deprecated
+    asyncio.get_event_loop().create_task(). If no loop is running
+    (e.g., called from a sync context during shutdown), logs a warning
+    instead of crashing.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+        return loop.create_task(coro)
+    except RuntimeError:
+        # No running loop — can't schedule; best-effort log
+        logger.warning("No event loop for async cleanup — coroutine dropped")
+        return None
+
+
 class MessagingGateway:
     """
     Central gateway that routes messages from any platform to an agent instance.
@@ -87,7 +104,10 @@ class MessagingGateway:
             agent = self._get_or_create_agent(msg.session_key)
         try:
             result = await agent.run(msg.text)
-            await self.send(msg.platform, msg.channel_id, result[:4000])
+            # FIX: Raise truncation limit from 4000 to 8000 chars.
+            # Many agent outputs exceed 4000 chars, causing information loss.
+            # 8000 is a better balance between completeness and messaging limits.
+            await self.send(msg.platform, msg.channel_id, result[:8000])
         except Exception as e:
             logger.error(f"[Gateway] Agent error: {e}")
             await self.send(msg.platform, msg.channel_id, f"Error: {e}")
@@ -97,15 +117,33 @@ class MessagingGateway:
         from app.agent.manus import Manus
         now = time.monotonic()
 
-        # Evict idle agents
+        # Evict idle agents — FIX: call cleanup on evicted agents
         evict = [k for k, t in self._last_active.items() if now - t > _IDLE_TTL]
         for k in evict:
-            self._agent_cache.pop(k, None)
+            agent = self._agent_cache.pop(k, None)
             self._last_active.pop(k, None)
+            # FIX: Call cleanup on evicted agents to release resources
+            if agent is not None and hasattr(agent, "cleanup"):
+                try:
+                    import asyncio as _asyncio
+                    coro = agent.cleanup()
+                    if _asyncio.iscoroutine(coro):
+                        _safe_create_task(coro)
+                except Exception as e:
+                    logger.warning(f"[Gateway] Cleanup error for evicted agent {k}: {e}")
 
-        # LRU eviction if over cache size
+        # LRU eviction if over cache size — FIX: call cleanup on LRU-evicted agents
         while len(self._agent_cache) >= _CACHE_SIZE:
-            self._agent_cache.popitem(last=False)
+            k, agent = self._agent_cache.popitem(last=False)
+            self._last_active.pop(k, None)
+            if agent is not None and hasattr(agent, "cleanup"):
+                try:
+                    import asyncio as _asyncio
+                    coro = agent.cleanup()
+                    if _asyncio.iscoroutine(coro):
+                        _safe_create_task(coro)
+                except Exception as e:
+                    logger.warning(f"[Gateway] Cleanup error for LRU-evicted agent {k}: {e}")
 
         if session_key not in self._agent_cache:
             self._agent_cache[session_key] = Manus()

@@ -132,8 +132,15 @@ class Memory(BaseModel):
         self.messages = []
 
     def token_estimate(self) -> int:
-        total = sum(len(m.content or "") for m in self.messages)
-        return total // 4
+        # FIX: Improved token estimation — chars/4 is a crude underestimate.
+        # Use a more accurate heuristic: ~0.6 tokens per word for English,
+        # with a floor based on character count for code-heavy content.
+        total_chars = sum(len(m.content or "") for m in self.messages)
+        total_words = sum(len((m.content or "").split()) for m in self.messages)
+        # Hybrid estimate: max of char-based and word-based estimates
+        char_estimate = total_chars // 4
+        word_estimate = int(total_words * 1.3)  # 1.3 tokens per word avg
+        return max(char_estimate, word_estimate)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -224,12 +231,19 @@ class TaskHistory(BaseModel):
             return False
         recent = self.steps[-window:]
         if all(not s.resolved for s in recent):
-            tool_names = [
-                o.tool_name
+            # FIX: Check both tool name AND args to detect true loops.
+            # Previously, only tool names were checked, so different args
+            # with the same tool name would be flagged as a loop.
+            # Use json.dumps(sort_keys=True) for deterministic serialization
+            # instead of str(sorted(o.args.items())) which can produce
+            # inconsistent representations for nested dicts and non-string keys.
+            import json as _json
+            tool_signatures = [
+                (o.tool_name, _json.dumps(o.args, sort_keys=True))
                 for s in recent
                 for o in s.observations
             ]
-            if len(set(tool_names)) == 1 and tool_names:
+            if len(set(tool_signatures)) == 1 and tool_signatures:
                 return True
         return False
 

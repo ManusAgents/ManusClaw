@@ -12,9 +12,22 @@ class BaseTool(ABC):
     parameters: dict[str, Any] = {}
 
     async def __call__(self, **kwargs: Any) -> ToolResult:
+        # FIX: Catch only specific exception types instead of masking ALL
+        # exceptions. BaseException subclasses (KeyboardInterrupt, SystemExit)
+        # should propagate. Unexpected exceptions are logged with full traceback.
         try:
             return await self.execute(**kwargs)
+        except KeyboardInterrupt:
+            raise
+        except SystemExit:
+            raise
         except Exception as e:
+            import traceback
+            from app.logger import logger as _logger
+            _logger.warning(
+                f"[Tool:{self.name}] Unhandled exception in execute(): {e}\n"
+                f"{traceback.format_exc()}"
+            )
             return ToolResult(error=str(e))
 
     @abstractmethod

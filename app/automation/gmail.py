@@ -462,15 +462,50 @@ class GmailWatcher:
         return False
 
     async def _send_reply(self, email: EmailMessage, body: str) -> None:
-        """Send a reply to the email."""
+        """Send a reply to the email.
+
+        FIX: Previously only marked the email as read without actually sending
+        a reply. Now creates a reply message and sends it via the Gmail API.
+        """
         if self._stub_mode:
             logger.info(f"[Gmail:stub] Would reply to {email.from_address}")
             return
 
         try:
+            import base64
+            from email.mime.text import MIMEText
+
             service = self._get_service()
 
-            # Modify message — mark as read
+            # Create the reply message
+            reply_message = MIMEText(body)
+            reply_message["To"] = email.from_address
+            reply_message["Subject"] = f"Re: {email.subject}"
+            reply_message["References"] = email.message_id
+            reply_message["In-Reply-To"] = email.message_id
+
+            # Encode the message for the Gmail API
+            raw_message = base64.urlsafe_b64encode(
+                reply_message.as_bytes()
+            ).decode("utf-8")
+
+            # Send the reply in the same thread
+            def _send():
+                return service.users().messages().send(
+                    userId=self._user_address,
+                    body={
+                        "raw": raw_message,
+                        "threadId": email.thread_id,
+                    },
+                ).execute()
+
+            result = await asyncio.to_thread(_send)
+            logger.info(
+                f"[Gmail] Reply sent to {email.from_address} "
+                f"(message_id={result.get('id', 'unknown')})"
+            )
+
+            # Also mark the original as read
             await asyncio.to_thread(
                 service.users().messages().modify(
                     userId=self._user_address,
@@ -478,8 +513,6 @@ class GmailWatcher:
                     body={"removeLabelIds": ["UNREAD"]},
                 ).execute
             )
-
-            logger.info(f"[Gmail] Marked {email.message_id} as read")
 
         except Exception as exc:
             logger.error(f"[Gmail] Reply error: {exc}")

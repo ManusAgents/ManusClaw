@@ -12,6 +12,12 @@ from app.permissions.gate import AgentMode, PermissionDenied, PermissionGate, Pe
 from app.schema import AgentState, Message, Role, TaskHistory
 from app.llm.token_tracker import TokenBudget
 
+# FIX: Import identity_guard at module level instead of inside run() to avoid
+# repeated runtime import overhead on every agent step.
+from app.agent.identity_guard import (
+    detect_manipulation, sanitize_user_message, get_identity_reinforcement,
+)
+
 MANUSCLAW_IDENTITY = """\
 You are ManusClaw — an autonomous AI operating environment developed under SHS Lab.
 You are created by The-JDdev (SHS Shobuj).
@@ -129,6 +135,8 @@ class BaseAgent(ABC):
         self._tool_call_count = 0
         self._cfg_token_budget: int = cfg.token_budget
         self._cached_trace_id: str = new_trace_id()
+        # FIX: Track whether skills have been injected to avoid re-injecting on every run
+        self._skills_injected: bool = False
 
     # ------------------------------------------------------------------
     # Effective token budget — reads from LLM if wired, else standalone
@@ -171,13 +179,14 @@ class BaseAgent(ABC):
         sys_content = MANUSCLAW_IDENTITY + "\n\n" + (self.system_prompt or "") + CORE_DIRECTIVES
         self.memory.add(Message.system(sys_content))
 
-        # Inject relevant skills as user messages (preserves prompt caching)
-        await self._inject_relevant_skills(prompt)
+        # FIX: Inject relevant skills only once per agent lifetime, not on every run.
+        # Re-injecting on every run pollutes the context window with duplicate skill messages.
+        if not self._skills_injected:
+            await self._inject_relevant_skills(prompt)
+            self._skills_injected = True
 
         # FIX: Identity guard — detect and neutralize jailbreak/injection attempts
-        from app.agent.identity_guard import (
-            detect_manipulation, sanitize_user_message, get_identity_reinforcement,
-        )
+        # (imports moved to module level for performance)
         is_manipulation, matched_pattern = detect_manipulation(prompt)
         safe_prompt = sanitize_user_message(prompt)
         if is_manipulation:
@@ -384,12 +393,29 @@ class BaseAgent(ABC):
         )
         step.observations.append(obs)
         if self._session_id:
+            # FIX: Fire-and-forget tasks could be lost on crash. Instead of
+            # creating a fire-and-forget task, we add a done callback that logs
+            # failures, and we flush pending tasks periodically to prevent
+            # unbounded accumulation.
             task = asyncio.create_task(self.db.log_tool_call(
                 session_id=self._session_id, step=self._step_count,
                 tool_name=tool_name, args=args, output=output, error=error,
                 attempt=attempt, duration_ms=duration_ms,
             ))
+            task.add_done_callback(self._on_db_task_done)
             self._pending_db_tasks.append(task)
+            # Flush completed tasks to prevent unbounded list growth
+            if len(self._pending_db_tasks) > 50:
+                self._pending_db_tasks = [t for t in self._pending_db_tasks if not t.done()]
+
+    @staticmethod
+    def _on_db_task_done(task: asyncio.Task) -> None:
+        """Callback for fire-and-forget DB tasks — log exceptions instead of silently losing them."""
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc:
+            logger.warning(f"[BaseAgent] Background DB write failed: {exc}")
 
     async def cleanup(self) -> None:
         if self._pending_db_tasks:

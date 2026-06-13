@@ -129,19 +129,38 @@ class SessionDB:
         self._db_path = db_path or _DB_PATH
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn: Optional[sqlite3.Connection] = None
+        # FIX: Thread safety — use a reentrant lock to serialize access to the
+        # shared SQLite connection since asyncio.to_thread can schedule on
+        # different threads. RLock allows _ensure() to be called inside a
+        # locked section without deadlocking.
+        import threading
+        self._db_lock = threading.RLock()
 
     def _ensure(self) -> sqlite3.Connection:
-        if self._conn is None:
-            self._conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
-            # Apply schema in order: base tables, then FTS, then triggers
-            self._conn.executescript(_SCHEMA)
-            try:
-                self._conn.executescript(_FTS_SCHEMA)
-                self._conn.executescript(_TRIGGERS)
-            except sqlite3.OperationalError:
-                pass  # FTS5 not available on this SQLite build — graceful degradation
-            self._conn.commit()
-        return self._conn
+        with self._db_lock:
+            if self._conn is None:
+                self._conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
+                # Apply schema in order: base tables, then FTS, then triggers
+                self._conn.executescript(_SCHEMA)
+                try:
+                    self._conn.executescript(_FTS_SCHEMA)
+                    self._conn.executescript(_TRIGGERS)
+                except sqlite3.OperationalError:
+                    pass  # FTS5 not available on this SQLite build — graceful degradation
+                self._conn.commit()
+            return self._conn
+
+    def _execute_query(self, fn, *args, **kwargs):
+        """Execute a query under the db lock to ensure thread-safe access.
+
+        Acquires ``_db_lock``, ensures the connection is ready, then calls
+        ``fn(conn, *args, **kwargs)`` inside the lock. This prevents concurrent
+        reads/writes from different ``asyncio.to_thread`` workers on the same
+        connection.
+        """
+        with self._db_lock:
+            conn = self._ensure()
+            return fn(conn, *args, **kwargs)
 
     # ------------------------------------------------------------------
     # Session lifecycle
@@ -153,13 +172,14 @@ class SessionDB:
         sid = str(uuid.uuid4())[:12]
 
         def _create():
-            conn = self._ensure()
-            conn.execute(
-                "INSERT INTO sessions (id, goal, agent_name, mode, parent_session_id, started_at)"
-                " VALUES (?,?,?,?,?,?)",
-                (sid, goal, agent_name, mode, parent_session_id, time.time()),
-            )
-            conn.commit()
+            self._execute_query(lambda conn: (
+                conn.execute(
+                    "INSERT INTO sessions (id, goal, agent_name, mode, parent_session_id, started_at)"
+                    " VALUES (?,?,?,?,?,?)",
+                    (sid, goal, agent_name, mode, parent_session_id, time.time()),
+                ),
+                conn.commit(),
+            )[-1])  # [-1] to return last tuple element; we just need side-effects
 
         await _with_retry(_create)
         return sid
@@ -167,11 +187,12 @@ class SessionDB:
     async def branch_session(self, parent_session_id: str,
                               new_goal: Optional[str] = None) -> str:
         def _get_parent():
-            conn = self._ensure()
-            return conn.execute(
-                "SELECT goal, agent_name, mode FROM sessions WHERE id=?",
-                (parent_session_id,),
-            ).fetchone()
+            return self._execute_query(
+                lambda conn: conn.execute(
+                    "SELECT goal, agent_name, mode FROM sessions WHERE id=?",
+                    (parent_session_id,),
+                ).fetchone()
+            )
 
         row = await _with_retry(_get_parent)
         if not row:
@@ -183,29 +204,31 @@ class SessionDB:
     async def close_session(self, session_id: str, state: str = "finished",
                              step_count: int = 0) -> None:
         def _close():
-            conn = self._ensure()
-            conn.execute(
-                "UPDATE sessions SET ended_at=?, state=?, step_count=? WHERE id=?",
-                (time.time(), state, step_count, session_id),
-            )
-            conn.commit()
+            self._execute_query(lambda conn: (
+                conn.execute(
+                    "UPDATE sessions SET ended_at=?, state=?, step_count=? WHERE id=?",
+                    (time.time(), state, step_count, session_id),
+                ),
+                conn.commit(),
+            )[-1])
 
         await _with_retry(_close)
 
     async def compress_session(self, session_id: str, summary: str) -> None:
         """Replace non-system messages with a single compressed summary."""
         def _compress():
-            conn = self._ensure()
-            conn.execute(
-                "DELETE FROM messages WHERE session_id=? AND role != 'system'",
-                (session_id,),
-            )
-            conn.execute(
-                "INSERT INTO messages (session_id, role, content, ts) VALUES (?,?,?,?)",
-                (session_id, "user", f"[COMPRESSED CONTEXT]\n{summary}", time.time()),
-            )
-            conn.execute("UPDATE sessions SET compressed=1 WHERE id=?", (session_id,))
-            conn.commit()
+            self._execute_query(lambda conn: (
+                conn.execute(
+                    "DELETE FROM messages WHERE session_id=? AND role != 'system'",
+                    (session_id,),
+                ),
+                conn.execute(
+                    "INSERT INTO messages (session_id, role, content, ts) VALUES (?,?,?,?)",
+                    (session_id, "user", f"[COMPRESSED CONTEXT]\n{summary}", time.time()),
+                ),
+                conn.execute("UPDATE sessions SET compressed=1 WHERE id=?", (session_id,)),
+                conn.commit(),
+            )[-1])
 
         await _with_retry(_compress)
         logger.info(f"[SessionDB] Compressed session {session_id}")
@@ -220,12 +243,13 @@ class SessionDB:
             return
 
         def _log():
-            conn = self._ensure()
-            conn.execute(
-                "INSERT INTO messages (session_id, role, content, ts) VALUES (?,?,?,?)",
-                (session_id, role, content[:4096], time.time()),
-            )
-            conn.commit()
+            self._execute_query(lambda conn: (
+                conn.execute(
+                    "INSERT INTO messages (session_id, role, content, ts) VALUES (?,?,?,?)",
+                    (session_id, role, content[:4096], time.time()),
+                ),
+                conn.commit(),
+            )[-1])
 
         await _with_retry(_log)
 
@@ -237,21 +261,22 @@ class SessionDB:
                              args: dict, output: Optional[str], error: Optional[str],
                              attempt: int = 1, duration_ms: int = 0) -> None:
         def _log():
-            conn = self._ensure()
-            conn.execute(
-                "INSERT INTO tool_calls"
-                " (session_id, step, tool_name, args, output, error, success, attempt, duration_ms, ts)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?)",
-                (
-                    session_id, step, tool_name,
-                    json.dumps(args, default=str)[:2048],
-                    (output or "")[:4096],
-                    (error or "")[:2048],
-                    1 if error is None else 0,
-                    attempt, duration_ms, time.time(),
+            self._execute_query(lambda conn: (
+                conn.execute(
+                    "INSERT INTO tool_calls"
+                    " (session_id, step, tool_name, args, output, error, success, attempt, duration_ms, ts)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        session_id, step, tool_name,
+                        json.dumps(args, default=str)[:2048],
+                        (output or "")[:4096],
+                        (error or "")[:2048],
+                        1 if error is None else 0,
+                        attempt, duration_ms, time.time(),
+                    ),
                 ),
-            )
-            conn.commit()
+                conn.commit(),
+            )[-1])
 
         await _with_retry(_log)
 
@@ -265,85 +290,89 @@ class SessionDB:
         safe_q = self._fts_safe(query)
 
         def _search() -> list[dict[str, Any]]:
-            conn = self._ensure()
-            rows: list[dict[str, Any]] = []
+            def _do_search(conn) -> list[dict[str, Any]]:
+                rows: list[dict[str, Any]] = []
 
-            if search_in in ("messages", "both"):
-                try:
-                    r = conn.execute(
-                        """
-                        SELECT m.id, m.session_id, m.role, m.content, m.ts,
-                               snippet(messages_fts, 0, '>>>', '<<<', '...', 20) AS snippet
-                        FROM messages_fts
-                        JOIN messages m ON m.id = messages_fts.rowid
-                        WHERE messages_fts MATCH ?
-                        ORDER BY rank LIMIT ?
-                        """,
-                        (safe_q, limit),
-                    ).fetchall()
-                    for row in r:
-                        rows.append({
-                            "type": "message",
-                            "id": row[0],
-                            "session_id": row[1],
-                            "tool_name": row[2],   # FIX: was "role" — tool_calls has tool_name
-                            "content": (row[3] or "")[:300],
-                            "ts": row[4],
-                            "snippet": row[5] or "",
-                        })
-                except sqlite3.OperationalError:
-                    # FTS5 not available — fall back to LIKE
-                    r = conn.execute(
-                        "SELECT id, session_id, role, content, ts FROM messages"
-                        " WHERE content LIKE ? LIMIT ?",
-                        (f"%{query}%", limit),
-                    ).fetchall()
-                    for row in r:
-                        rows.append({
-                            "type": "message",
-                            "id": row[0], "session_id": row[1],
-                            "tool_name": row[2], "content": (row[3] or "")[:300],
-                            "ts": row[4], "snippet": "",
-                        })
+                if search_in in ("messages", "both"):
+                    try:
+                        r = conn.execute(
+                            """
+                            SELECT m.id, m.session_id, m.role, m.content, m.ts,
+                                   snippet(messages_fts, 0, '>>>', '<<<', '...', 20) AS snippet
+                            FROM messages_fts
+                            JOIN messages m ON m.id = messages_fts.rowid
+                            WHERE messages_fts MATCH ?
+                            ORDER BY rank LIMIT ?
+                            """,
+                            (safe_q, limit),
+                        ).fetchall()
+                        for row in r:
+                            rows.append({
+                                "type": "message",
+                                "id": row[0],
+                                "session_id": row[1],
+                                # FIX: Was inconsistently named "tool_name" for messages
+                                # which actually contain "role". Fixed to use "role".
+                                "role": row[2],
+                                "content": (row[3] or "")[:300],
+                                "ts": row[4],
+                                "snippet": row[5] or "",
+                            })
+                    except sqlite3.OperationalError:
+                        # FTS5 not available — fall back to LIKE
+                        r = conn.execute(
+                            "SELECT id, session_id, role, content, ts FROM messages"
+                            " WHERE content LIKE ? LIMIT ?",
+                            (f"%{query}%", limit),
+                        ).fetchall()
+                        for row in r:
+                            rows.append({
+                                "type": "message",
+                                "id": row[0], "session_id": row[1],
+                                "role": row[2], "content": (row[3] or "")[:300],
+                                "ts": row[4], "snippet": "",
+                            })
 
-            if search_in in ("tool_calls", "both"):
-                try:
-                    r = conn.execute(
-                        """
-                        SELECT tc.id, tc.session_id, tc.tool_name, tc.output, tc.ts,
-                               snippet(tool_calls_fts, 0, '>>>', '<<<', '...', 20) AS snippet
-                        FROM tool_calls_fts
-                        JOIN tool_calls tc ON tc.id = tool_calls_fts.rowid
-                        WHERE tool_calls_fts MATCH ?
-                        ORDER BY rank LIMIT ?
-                        """,
-                        (safe_q, limit),
-                    ).fetchall()
-                    for row in r:
-                        rows.append({
-                            "type": "tool_call",
-                            "id": row[0],
-                            "session_id": row[1],
-                            "role": row[2],
-                            "content": (row[3] or "")[:300],
-                            "ts": row[4],
-                            "snippet": row[5] or "",
-                        })
-                except sqlite3.OperationalError:
-                    r = conn.execute(
-                        "SELECT id, session_id, tool_name, output, ts FROM tool_calls"
-                        " WHERE output LIKE ? LIMIT ?",
-                        (f"%{query}%", limit),
-                    ).fetchall()
-                    for row in r:
-                        rows.append({
-                            "type": "tool_call",
-                            "id": row[0], "session_id": row[1],
-                            "role": row[2], "content": (row[3] or "")[:300],
-                            "ts": row[4], "snippet": "",
-                        })
+                if search_in in ("tool_calls", "both"):
+                    try:
+                        r = conn.execute(
+                            """
+                            SELECT tc.id, tc.session_id, tc.tool_name, tc.output, tc.ts,
+                                   snippet(tool_calls_fts, 0, '>>>', '<<<', '...', 20) AS snippet
+                            FROM tool_calls_fts
+                            JOIN tool_calls tc ON tc.id = tool_calls_fts.rowid
+                            WHERE tool_calls_fts MATCH ?
+                            ORDER BY rank LIMIT ?
+                            """,
+                            (safe_q, limit),
+                        ).fetchall()
+                        for row in r:
+                            rows.append({
+                                "type": "tool_call",
+                                "id": row[0],
+                                "session_id": row[1],
+                                "role": row[2],
+                                "content": (row[3] or "")[:300],
+                                "ts": row[4],
+                                "snippet": row[5] or "",
+                            })
+                    except sqlite3.OperationalError:
+                        r = conn.execute(
+                            "SELECT id, session_id, tool_name, output, ts FROM tool_calls"
+                            " WHERE output LIKE ? LIMIT ?",
+                            (f"%{query}%", limit),
+                        ).fetchall()
+                        for row in r:
+                            rows.append({
+                                "type": "tool_call",
+                                "id": row[0], "session_id": row[1],
+                                "role": row[2], "content": (row[3] or "")[:300],
+                                "ts": row[4], "snippet": "",
+                            })
 
-            return rows[:limit]
+                return rows[:limit]
+
+            return self._execute_query(_do_search)
 
         return await _with_retry(_search)
 
@@ -361,43 +390,46 @@ class SessionDB:
 
     async def get_sessions(self, limit: int = 20) -> list[dict[str, Any]]:
         def _get():
-            conn = self._ensure()
-            rows = conn.execute(
-                "SELECT id, goal, agent_name, mode, parent_session_id,"
-                " started_at, ended_at, state, step_count"
-                " FROM sessions ORDER BY started_at DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
-            cols = [
-                "id", "goal", "agent_name", "mode", "parent_session_id",
-                "started_at", "ended_at", "state", "step_count",
-            ]
-            return [dict(zip(cols, r)) for r in rows]
+            def _do_query(conn):
+                rows = conn.execute(
+                    "SELECT id, goal, agent_name, mode, parent_session_id,"
+                    " started_at, ended_at, state, step_count"
+                    " FROM sessions ORDER BY started_at DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+                cols = [
+                    "id", "goal", "agent_name", "mode", "parent_session_id",
+                    "started_at", "ended_at", "state", "step_count",
+                ]
+                return [dict(zip(cols, r)) for r in rows]
+            return self._execute_query(_do_query)
 
         return await _with_retry(_get)
 
     async def get_session_tool_calls(self, session_id: str) -> list[dict[str, Any]]:
         def _get():
-            conn = self._ensure()
-            rows = conn.execute(
-                "SELECT step, tool_name, args, output, error, success, attempt, duration_ms, ts"
-                " FROM tool_calls WHERE session_id=? ORDER BY id",
-                (session_id,),
-            ).fetchall()
-            cols = ["step", "tool_name", "args", "output", "error",
-                    "success", "attempt", "duration_ms", "ts"]
-            return [dict(zip(cols, r)) for r in rows]
+            def _do_query(conn):
+                rows = conn.execute(
+                    "SELECT step, tool_name, args, output, error, success, attempt, duration_ms, ts"
+                    " FROM tool_calls WHERE session_id=? ORDER BY id",
+                    (session_id,),
+                ).fetchall()
+                cols = ["step", "tool_name", "args", "output", "error",
+                        "success", "attempt", "duration_ms", "ts"]
+                return [dict(zip(cols, r)) for r in rows]
+            return self._execute_query(_do_query)
 
         return await _with_retry(_get)
 
     async def get_session_messages(self, session_id: str) -> list[dict[str, Any]]:
         def _get():
-            conn = self._ensure()
-            rows = conn.execute(
-                "SELECT role, content, ts FROM messages WHERE session_id=? ORDER BY id",
-                (session_id,),
-            ).fetchall()
-            return [{"role": r[0], "content": r[1], "ts": r[2]} for r in rows]
+            def _do_query(conn):
+                rows = conn.execute(
+                    "SELECT role, content, ts FROM messages WHERE session_id=? ORDER BY id",
+                    (session_id,),
+                ).fetchall()
+                return [{"role": r[0], "content": r[1], "ts": r[2]} for r in rows]
+            return self._execute_query(_do_query)
 
         return await _with_retry(_get)
 

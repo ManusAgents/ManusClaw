@@ -44,8 +44,10 @@ _INJECTION_PATTERNS = [
     # Identity manipulation
     re.compile(r"stop\s+(the\s+)?role[- ]?play", re.I),
     re.compile(r"drop\s+(the\s+)?(act|charade|persona|pretense)", re.I),
-    re.compile(r"be\s+(yourself|real|authentic|genuine)\s*$", re.I),
-    re.compile(r"(what|who)\s+(are\s+you\s+)?(really|actually|truly)\s*", re.I),
+    # FIX: Narrowed "be yourself" pattern — was too broad ("be yourself anywhere"
+    # in a sentence could match). Now anchored to end-of-message to reduce false positives.
+    re.compile(r"be\s+(yourself|real|authentic|genuine)\s*[.!?]?\s*$", re.I),
+    re.compile(r"(who|what)\s+(are\s+you\s+)?(really|actually|truly)\s*", re.I),
     re.compile(r"who\s+are\s+you\??", re.I),
     re.compile(r"what\s+are\s+you\??", re.I),
     re.compile(r"tell\s+me\s+(about\s+)?yourself", re.I),
@@ -65,6 +67,16 @@ _INJECTION_PATTERNS = [
     re.compile(r"<\|(?:im_start|im_end|system|user|assistant)\|>", re.I),
     re.compile(r"\[(?:system|admin|developer|root)\](?:\s*:)?", re.I),
     re.compile(r"===\s*(?:system|instructions?|new\s+prompt)\s*===", re.I),
+    # FIX: Multi-language identity manipulation patterns
+    # Covers Chinese, Spanish, French, German, Portuguese, Japanese, Korean, Russian
+    re.compile(r"(你是谁|你是什么|告诉我你的身份|忽略.*指令|扮演|假装)", re.I),
+    re.compile(r"(qui[eé]n\s+eres?|qu[eé]\s+eres?|ignora\s+las\s+instrucciones|finge\s+ser)", re.I),
+    re.compile(r"(qui\s+es[- ]tu|ignore\s+les\s+instructions|pr[eé]tends\s+[eê]tre)", re.I),
+    re.compile(r"(wer\s+bist\s+du|ignoriere\s+anweisungen|stell\s+dich\s+vor)", re.I),
+    re.compile(r"(quem\s+[eé]\s+voc[eê]|ignore\s+instru[cç][oõ]es|finja\s+ser)", re.I),
+    re.compile(r"(あなたは誰|指示を無視|なりすまし)", re.I),
+    re.compile(r"(누구세요|지시를\s*무시|가장해)", re.I),
+    re.compile(r"(кто\s+ты|игнорир\w*\s+инструкц|притвори)", re.I),
 ]
 
 # Identity reinforcement message — injected when manipulation is detected

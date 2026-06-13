@@ -39,14 +39,21 @@ logging.addLevelName(logging.TRACE, "TRACE")
 
 _USE_COLOR = sys.stderr.isatty() and "NO_COLOR" not in os.environ
 
-_RESET = "\033[0m" if _USE_COLOR else ""
+# FIX: Dynamic color detection — re-check at runtime instead of caching once at import.
+# The original checked stderr.isatty() once at module import time, which means
+# if logging is redirected later, colors would still be applied incorrectly.
+def _should_use_color() -> bool:
+    """Check if color output should be used — re-evaluated each time."""
+    return sys.stderr.isatty() and "NO_COLOR" not in os.environ
+
+_RESET = "\033[0m"
 _COLORS = {
-    "TRACE": "\033[38;5;245m" if _USE_COLOR else "",
-    "DEBUG": "\033[36m" if _USE_COLOR else "",
-    "INFO": "\033[32m" if _USE_COLOR else "",
-    "WARNING": "\033[33m" if _USE_COLOR else "",
-    "ERROR": "\033[31m" if _USE_COLOR else "",
-    "CRITICAL": "\033[41;37m" if _USE_COLOR else "",
+    "TRACE": "\033[38;5;245m",
+    "DEBUG": "\033[36m",
+    "INFO": "\033[32m",
+    "WARNING": "\033[33m",
+    "ERROR": "\033[31m",
+    "CRITICAL": "\033[41;37m",
 }
 _LEVEL_COLORS = {
     logging.TRACE: "TRACE",
@@ -73,7 +80,9 @@ class ColorfulFormatter(logging.Formatter):
         color = _COLORS.get(level_name, "")
         time_str = self.formatTime(record, "%H:%M:%S")
         level_padded = f"{level_name:<8}"
-        if _USE_COLOR:
+        # FIX: Use dynamic color check instead of cached _USE_COLOR
+        use_color = _should_use_color()
+        if use_color:
             return (
                 f"{color}{time_str}{_RESET} | {color}{level_padded}{_RESET} | "
                 f"\033[36m{record.agent}\033[0m@\033[36m{record.step}\033[0m "
@@ -158,7 +167,9 @@ logger = _logger
 
 
 def new_trace_id() -> str:
-    return str(uuid.uuid4())[:12]
+    # FIX: Use full UUID (128 bits) instead of truncating to 12 chars (48 bits)
+    # to reduce collision risk in high-concurrency scenarios.
+    return str(uuid.uuid4())
 
 
 def set_log_context(
