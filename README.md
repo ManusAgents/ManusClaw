@@ -10,16 +10,18 @@
 
 ### **v5.1.0 — Enterprise-Grade Autonomous AI Agent Framework**
 
-**A production-ready, self-reasoning AI agent framework with DAG-based multi-agent orchestration, defense-in-depth security, 100+ LLM providers, 13+ messaging channels, voice interaction, live canvas, and enterprise observability — built for teams that ship.**
+**A production-ready, self-reasoning AI agent framework with PAORR loop, DAG-based multi-agent orchestration, defense-in-depth security, 100+ LLM providers (cloud + offline/GGUF/HuggingFace), 13+ messaging channels, voice interaction, live canvas, SSH server, cron scheduler, and enterprise observability.**
 
 <p>
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20Docker-informational?style=flat-square" alt="Platforms">
   &nbsp;•&nbsp;
   <img src="https://img.shields.io/badge/LLM-100%2B%20Providers-FF6F00?style=flat-square&logo=brain&logoColor=white" alt="LLM Providers">
   &nbsp;•&nbsp;
-  <img src="https://img.shields.io/badge/Channels-13%2B%20Platforms-00B4D8?style=flat-square&logo=message&logoColor=white" alt="Channels">
+  <img src="https://img.shields.io/badge/Offline-GGUF%20%7C%20HF%20%7C%20Ollama-9C27B0?style=flat-square" alt="Offline">
   &nbsp;•&nbsp;
-  <img src="https://img.shields.io/badge/Tools-18%2B-00C853?style=flat-square" alt="Tools">
+  <img src="https://img.shields.io/badge/Channels-13%2B-00B4D8?style=flat-square&logo=message&logoColor=white" alt="Channels">
+  &nbsp;•&nbsp;
+  <img src="https://img.shields.io/badge/Tools-17%2B-00C853?style=flat-square" alt="Tools">
 </p>
 
 </div>
@@ -32,27 +34,34 @@
 - [Overview](#-overview)
 - [Architecture](#-architecture)
 - [Features](#-features)
-  - [Agent System](#-agent-system)
-  - [Event System](#-event-system)
+  - [Agent System](#-agent-system--paorr-loop--multi-agent--roles)
+  - [Event System](#-event-system--discriminated-unions--eventlog)
   - [Security Defense-in-Depth](#-security-defense-in-depth)
   - [Hooks System](#-hooks-system)
-  - [Context Management](#-context-management)
+  - [Context Management](#-context-management--view--condenser)
   - [Conversation System](#-conversation-system)
   - [Parallel Tool Execution](#-parallel-tool-execution)
-  - [LLM Integration](#-llm-integration)
-  - [Secrets Management](#-secrets-management)
-  - [File Storage](#-file-storage)
+  - [LLM Integration](#-llm-integration--100-providers--offline--streaming)
+  - [Secrets Management](#-secrets-management--fernet-encryption)
+  - [File Storage](#-file-storage-backends)
   - [Git Provider Integrations](#-git-provider-integrations)
   - [Issue & PR Resolution](#-issue--pr-resolution)
-  - [Project Management](#-project-management)
-  - [Observability](#-observability)
-  - [Messaging Channels](#-messaging-channels)
-  - [Voice System](#-voice-system)
-  - [Canvas UI](#-canvas-ui)
-  - [Tools](#-tools)
+  - [Project Management](#-project-management--jira--linear--slack)
+  - [Observability](#-observability--opentelemetry--prometheus)
+  - [Messaging Channels](#-13-messaging-channels)
+  - [Voice System](#-voice-system--wake-word--stt--tts)
+  - [Canvas UI](#-canvas-ui--a2ui-protocol)
+  - [Tools](#-17-tools--intelligent-selector)
+  - [SSH Server](#-ssh-server)
+  - [Cron Scheduler](#-cron-scheduler)
+  - [Skills Engine](#-skills-engine)
+  - [MCP Protocol](#-mcp-protocol--client--server)
+  - [Desktop Apps](#-desktop-apps)
+  - [Session & Memory](#-session--memory-system)
 - [Quick Start](#-quick-start)
 - [Configuration](#-configuration)
 - [Docker Deployment](#-docker-deployment)
+- [Entry Points](#-entry-points)
 - [Contributing](#-contributing)
 - [License](#-license)
 
@@ -64,21 +73,20 @@ ManusClaw v5.1 introduces enterprise-grade capabilities that transform it from a
 
 | Category | Highlights |
 |---|---|
-| **Event System** | Discriminated union types, `LLMConvertibleEvent` protocol, file-backed `EventLog` with O(1) length queries, crash-proof atomic writes |
-| **Security** | Defense-in-depth with Pattern, Policy Rails, LLM, and Ensemble analyzers; max-severity fusion; crash isolation |
-| **Hooks** | 6 lifecycle event types, blocking (DENY), modification (MODIFY), audit trail, priority-based execution, per-hook timeout |
-| **Context** | View system with manipulation indices, `LLMSummarizingCondenser`, property enforcement (atomicity, uniqueness, tool-call matching) |
-| **Conversation** | Local & Remote conversation modes, `StuckDetector` (5 patterns), `CancellationToken`, FIFO fair locks |
-| **Parallel Execution** | `ResourceLockManager` with readers-writer locking, `FIFOLock` (sync + async), deadlock prevention with global acquisition ordering |
-| **LLM** | 100+ providers via litellm, streaming deltas, credential pool rotation, model failover profiles, token budget enforcement |
-| **Secrets** | Fernet-encrypted store, `SecretRegistry` with lazy resolution, namespace support, audit logging |
-| **File Storage** | Pluggable backends: Local, S3, GCS, In-Memory; factory auto-detection |
+| **Event System** | 17 discriminated union event types, `LLMConvertibleEvent`, file-backed `EventLog` with O(1) length, crash-proof atomic writes |
+| **Security** | Defense-in-depth: Pattern + Policy Rails + LLM + Ensemble analyzers with max-severity fusion |
+| **Hooks** | 6 lifecycle event types, DENY/MODIFY/ALLOW decisions, audit trail, per-hook timeout |
+| **Context** | View system with manipulation indices, `LLMSummarizingCondenser`, property enforcement |
+| **Conversation** | Local & Remote modes, `StuckDetector` (5 patterns), `CancellationToken`, FIFOLock |
+| **Parallel Execution** | `ResourceLockManager` with readers-writer locking, deadlock prevention |
+| **LLM** | 100+ providers via litellm, streaming deltas, model failover, non-native tool calling |
+| **Secrets** | Fernet-encrypted store, `SecretRegistry` with lazy resolution, audit logging |
+| **File Storage** | Pluggable backends: Local, S3, GCS, In-Memory with factory auto-detection |
 | **Git Providers** | GitHub, GitLab, Azure DevOps, Bitbucket, Forgejo — unified provider interface |
-| **Issue Resolution** | LLM-powered resolver for issues, PR updates, merge conflicts; thread-safe with timeout protection |
-| **Project Management** | Jira, Linear, Slack integrations for task tracking and notifications |
-| **Observability** | OpenTelemetry tracing, Prometheus metrics, Kubernetes health probes (liveness + readiness) |
-| **Tools** | 18+ built-in tools including Browser Use, Crawl4AI, Data Viz, Image Gen, Memory, Delegate |
-| **Channels** | 13+ messaging platforms including WhatsApp, Signal, Teams, Matrix, IRC, Twitch, Google Chat |
+| **Issue Resolution** | LLM-powered resolver for issues, PRs, merge conflicts with webhook triggers |
+| **Project Mgmt** | Jira, Linear, Slack integrations for task tracking and notifications |
+| **Observability** | OpenTelemetry tracing, Prometheus metrics, K8s liveness + readiness probes |
+| **Migrations** | Alembic database migrations with 7 core tables |
 
 ---
 
@@ -86,128 +94,122 @@ ManusClaw v5.1 introduces enterprise-grade capabilities that transform it from a
 
 ManusClaw is an enterprise-grade autonomous AI agent framework that empowers Large Language Models to **plan**, **execute code**, **browse the web**, **manage files**, **resolve issues**, and **complete complex multi-step tasks** — all autonomously.
 
-At its core is the **PAORR reasoning loop** (Plan → Act → Observe → Reflect → Retry), a sophisticated execution model that gives agents self-correction capabilities. Combined with **DAG-based multi-agent orchestration**, **defense-in-depth security**, and **enterprise observability**, ManusClaw is designed for teams that need reliable, auditable AI automation at scale.
+At its core is the **PAORR reasoning loop** (Plan → Act → Observe → Reflect → Retry), a self-correcting execution model. Combined with **DAG-based multi-agent orchestration**, **defense-in-depth security**, **offline LLM support (GGUF/HuggingFace/Ollama)**, and **enterprise observability**, ManusClaw runs anywhere — cloud, local, or fully air-gapped.
 
 **Why ManusClaw?**
 
 | Challenge | ManusClaw Solution |
 |---|---|
-| Vendor lock-in | 100+ LLM providers with credential rotation, model failover profiles, and zero-switch routing |
+| Vendor lock-in | 100+ cloud providers + offline GGUF/HuggingFace/Ollama with credential rotation and model failover |
+| No internet access | Fully offline: GGUF via llama-cpp-python, HuggingFace local, Ollama local — zero cloud dependency |
 | No persistence | SQLite-backed sessions, event logs, task queues — all survive restarts |
-| Security blind spots | Defense-in-depth: Pattern → Rails → LLM → Ensemble analysis with audit trails |
+| Security blind spots | Defense-in-depth: Pattern → Rails → LLM → Ensemble with audit trails |
 | Single-agent limit | DAG-based Multi-Agent Orchestrator with per-channel/per-account routing |
 | Context overflow | View system with LLM Summarizing Condenser and property enforcement |
-| Tool chaos | Heuristic ToolSelector scores 18+ tools with failure penalties and recency diversification |
-| Platform fragmentation | 13+ messaging adapters, voice, canvas, SSH, webhooks |
-| No observability | OpenTelemetry tracing, Prometheus metrics, K8s health probes |
-| Secret management | Fernet encryption, SecretRegistry with lazy resolution and audit logging |
+| Tool chaos | Heuristic + LLM ToolSelector scores 17+ tools with failure penalties |
+| Platform fragmentation | 13+ messaging adapters, voice, canvas, SSH, webhooks, cron |
+| No observability | OpenTelemetry, Prometheus metrics, K8s health probes, correlation IDs |
+| Secret management | Fernet encryption, SecretRegistry with lazy resolution |
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        PRESENTATION LAYER                          │
-│  CLI · WebChat · Canvas (A2UI) · 13+ Messaging Channels · Voice   │
-├─────────────────────────────────────────────────────────────────────┤
-│                         AGENT LAYER                                │
-│  ┌─────────────┐  ┌──────────────┐  ┌───────────────────────────┐  │
-│  │  PAORR Loop │  │ Multi-Agent  │  │  Role Pipeline            │  │
-│  │ Plan→Act→   │  │ Orchestrator │  │  PM → Architect → Eng → QA│  │
-│  │ Observe→    │  │  (DAG-based) │  │  with RoleMessageBus      │  │
-│  │ Reflect→    │  └──────────────┘  └───────────────────────────┘  │
-│  │ Retry       │                                                   │
-│  └─────────────┘                                                   │
-├─────────────────────────────────────────────────────────────────────┤
-│                       MIDDLEWARE LAYER                              │
-│  ┌──────────┐ ┌──────────┐ ┌───────────┐ ┌──────────────────────┐ │
-│  │  Hooks   │ │ Security │ │  Context   │ │  Conversation        │ │
-│  │ System   │ │ Ensemble │ │  View +    │ │  Local / Remote +    │ │
-│  │ 6 events │ │ Defense- │ │  Condenser │ │  StuckDetector +     │ │
-│  │ DENY/    │ │ in-Depth │ │  Pipeline  │ │  CancellationToken   │ │
-│  │ MODIFY   │ │          │ │            │ │                      │ │
-│  └──────────┘ └──────────┘ └───────────┘ └──────────────────────┘ │
-│  ┌──────────────────────┐ ┌──────────────────────────────────────┐ │
-│  │  Parallel Executor   │ │  Event System                       │ │
-│  │  ResourceLockManager │ │  Discriminated Unions · EventLog    │ │
-│  │  FIFO Locks          │ │  LLMConvertibleEvent · Streaming    │ │
-│  └──────────────────────┘ └──────────────────────────────────────┘ │
-├─────────────────────────────────────────────────────────────────────┤
-│                       INTEGRATION LAYER                            │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ │
-│  │   LLM    │ │   Git    │ │  Issue   │ │ Project  │ │ Secrets│ │
-│  │ 100+     │ │Providers │ │Resolver  │ │  Mgmt    │ │ Fernet │ │
-│  │Providers │ │5 platforms│ │LLM-powered│ │Jira·Linear│ │Registry│ │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └────────┘ │
-│  ┌──────────┐ ┌──────────┐ ┌──────────────────────────────────┐   │
-│  │  File    │ │   MCP    │ │  Observability                   │   │
-│  │ Storage  │ │ Protocol │ │  OTEL · Prometheus · Health      │   │
-│  │S3·GCS·Lcl│ │ Client+  │ │  Traces · Metrics · Probes       │   │
-│  └──────────┘ │  Server  │ └──────────────────────────────────┘   │
-│               └──────────┘                                         │
-├─────────────────────────────────────────────────────────────────────┤
-│                        TOOL LAYER                                  │
-│  Bash · Python · Browser · WebSearch · Crawl4AI · ImageGen ·      │
-│  StrReplace · Memory · Delegate · Planning · DataViz · AskHuman ·  │
-│  PlatformCtrl · NodeExecute · SkillManager · Terminate · Selector  │
-├─────────────────────────────────────────────────────────────────────┤
-│                      INFRASTRUCTURE LAYER                          │
-│  SQLite · SessionDB · Cron · TaskQueue · Sandbox (Docker/SSH/Local)│
-└─────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          PRESENTATION LAYER                                 │
+│  CLI · WebChat · Canvas (A2UI) · SSH Server · 13+ Messaging · Voice        │
+│  Desktop: macOS Menubar · Windows Hub · Mobile Node Client                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                           AGENT LAYER                                       │
+│  ┌──────────────┐  ┌───────────────┐  ┌─────────────────────────────────┐  │
+│  │  PAORR Loop  │  │  Multi-Agent  │  │  Role Pipeline                  │  │
+│  │ Plan → Act → │  │  Orchestrator │  │  PM → Architect → Engineer → QA │  │
+│  │ Observe →    │  │  (DAG-based)  │  │  with RoleMessageBus            │  │
+│  │ Reflect →    │  └───────────────┘  └─────────────────────────────────┘  │
+│  │ Retry        │                                                         │
+│  └──────────────┘                                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                         MIDDLEWARE LAYER                                    │
+│  Hooks · Security Ensemble · Context View + Condenser · Conversation       │
+│  Parallel Executor (ResourceLock) · Event System (Discriminated Unions)    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                        INTEGRATION LAYER                                    │
+│  LLM (100+ cloud + GGUF/HF/Ollama offline) · Git Providers (5 platforms)  │
+│  Issue Resolver · Project Mgmt (Jira/Linear/Slack) · Secrets (Fernet)     │
+│  File Storage (S3/GCS/Local) · MCP Protocol · Observability (OTEL/Prom)   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                          TOOL LAYER (17+)                                   │
+│  Bash · Python · Node.js · Browser · WebSearch · Crawl4AI · ImageGen      │
+│  StrReplace · Memory · Delegate · Planning · DataViz · AskHuman           │
+│  PlatformCtrl · SkillManager · CrossSessionSearch · Terminate · Selector   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                       INFRASTRUCTURE LAYER                                  │
+│  SQLite WAL · SessionDB (FTS5) · Cron Scheduler · TaskQueue · Sandbox     │
+│  (Docker/SSH/OpenShell) · Alembic Migrations · LongTermMemory             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## ✨ Features
 
-### 🤖 Agent System
+### 🤖 Agent System — PAORR Loop + Multi-Agent + Roles
 
 The PAORR loop is the heart of ManusClaw — a self-correcting reasoning cycle that plans, acts, observes, reflects, and retries until the task is complete.
 
 | Feature | Description |
 |---|---|
 | **PAORR Loop** | Plan → Act → Observe → Reflect → Retry — autonomous self-correction at every step |
-| **Multi-Agent Orchestrator** | DAG-based pipeline with topological sorting and parallel stage execution |
+| **Self-Check** | Manus agent performs self-check every 3 steps to verify progress |
+| **Multi-Agent Orchestrator** | DAG-based pipeline with topological sorting (Kahn's algorithm), event hooks, global timeout |
 | **Role Pipeline** | ProductManager → Architect → Engineer → QA with typed `RoleResult` and `RoleMessageBus` |
-| **Agent Router** | Per-channel and per-account routing to specialized agent instances |
-| **Identity Guard** | 30+ anti-jailbreak patterns with prompt injection detection |
-| **Permission Gate** | AgentMode-based access control (AUTONOMOUS, CONFIRM, RESTRICTED) |
-| **Skill Engine** | Auto-injection of domain expertise from Markdown/YAML skill files |
-| **PlanningFlow** | Step-by-step task decomposition with dependency tracking |
+| **Agent Router** | Per-channel and per-account routing with LRU cache (64 entries, 300s idle TTL) |
+| **Agent Registry** | Dynamic agent class import (sandboxed to `app.` namespace) with idle eviction + cleanup |
+| **Identity Guard** | 30+ anti-jailbreak patterns in 9 languages (English, Chinese, Spanish, French, German, Portuguese, Japanese, Korean, Russian) |
+| **Permission Gate** | 3-tier access control: AUTONOMOUS / CONFIRM / RESTRICTED with catastrophic pattern blocking |
+| **Skill Engine** | Auto-injection of domain expertise from Markdown skill files based on relevance matching |
+| **PlanningFlow** | Step-by-step task decomposition with scoring, replanning, and agent caching |
 
-### 📡 Event System
+**Agent Types:**
 
-A type-safe, discriminated-union event system that provides full observability into every agent action.
+| Agent | Description |
+|---|---|
+| **Manus** | Full-featured autonomous agent with all 14+ tools, PAORR loop, self-check every 3 steps |
+| **ReAct** | Think → Act → Observe → Reflect → Retry loop with max 3 reflect retries per step |
+| **ToolCall** | Structured function-calling agent with ToolSelector scoring and permission gate |
+| **Browser** | Browser-focused agent (browser, search, crawl, terminate) |
+| **DataAnalysis** | Manus + DataVisualization tool for data exploration workflows |
+| **MCP** | Connects to MCP servers (stdio/SSE) and proxies their tools |
+
+**Agent Inheritance:** `BaseAgent → ReActAgent → ToolCallAgent → Manus → DataAnalysisAgent`
+
+### 📡 Event System — Discriminated Unions + EventLog
 
 | Feature | Description |
 |---|---|
-| **Discriminated Unions** | 17 typed event kinds with `kind` literal discriminators for pattern matching |
-| **LLMConvertibleEvent** | Protocol for events that convert to LLM message format (`to_llm_message()`) |
+| **17 Event Types** | SystemPrompt, Message, Action, Observation, Condensation, CondensationRequest, AgentError, Token, Interrupt, Pause, ConversationError, StateUpdate, LLMCompletionLog, HookExecution, StreamingDelta, UserRejectObservation, ResumeTranscript |
+| **Discriminated Unions** | Type-safe polymorphism via `kind` literal discriminators for pattern matching |
+| **LLMConvertibleEvent** | Protocol for events that convert to LLM message format with parallel tool-call batching |
 | **File-Backed EventLog** | NDJSON append-only log with O(1) length queries, lazy loading, atomic writes |
 | **Crash Safety** | Temp-file-then-rename strategy; count file updated post-write; `reindex()` recovery |
-| **StreamingDeltaEvent** | Real-time streaming deltas pushed to UI during LLM generation |
-| **TokenEvent** | Per-call token tracking for budget enforcement and cost monitoring |
-| **HookExecutionEvent** | Audit trail for every hook invocation with timing and outcome |
-| **Condensation Events** | Context window management events with forgotten-event tracking |
+| **JSON Serialization** | Full serialize/deserialize with `serialize_batch()` / `deserialize_batch()` for NDJSON |
 
 ### 🛡️ Security Defense-in-Depth
 
-Multi-layer security analysis that combines pattern matching, policy rails, LLM-based analysis, and ensemble fusion.
+Multi-layer security analysis combining pattern matching, policy rails, LLM-based analysis, and ensemble fusion.
 
-| Layer | Description |
-|---|---|
-| **Pattern Analyzer** | Regex-based detection of dangerous commands, path traversal, injection patterns |
-| **Policy Rails** | Configurable allow/deny rules for tool arguments and execution contexts |
-| **LLM Analyzer** | AI-powered semantic analysis for subtle threats that rules miss |
-| **Ensemble Analyzer** | Combines all analyzers with max-severity fusion, crash isolation, and full audit trail |
-| **Confirmation Policy** | Human-in-the-loop confirmation for high-risk operations |
-| **Secret Redaction** | Automatic detection and masking of secrets in LLM prompts and outputs |
-| **Cipher Module** | Fernet-based encryption for sensitive data at rest |
+| Layer | Class | Description |
+|---|---|---|
+| **Pattern Analyzer** | `PatternSecurityAnalyzer` | 8 regex patterns across 2 corpora (executable + all-field): `rm_rf`, `sudo_rm`, `eval_call`, `subprocess`, `curl_pipe_exec`, `inject_override`, `inject_mode_switch`, `inject_identity` |
+| **Policy Rails** | `PolicyRailSecurityAnalyzer` | 3 structural rails: fetch-to-exec, raw-disk-op, catastrophic-delete. Per-segment evaluation prevents cross-field false positives |
+| **LLM Analyzer** | `LLMSecurityAnalyzer` | AI-powered semantic analysis for subtle threats, configurable call budget |
+| **Ensemble Analyzer** | `EnsembleSecurityAnalyzer` | Combines all analyzers with max-severity fusion, crash isolation, full audit trail |
+| **Confirmation Policy** | `NeverConfirm` / `ConfirmRisky` | Human-in-the-loop confirmation for HIGH/UNKNOWN risk operations |
+| **Cipher Module** | `Cipher` | Fernet-based encryption for data at rest with key rotation support |
+| **Secret Redaction** | `redact()` | Context-aware detection and masking of API keys, tokens, AWS secrets with prefix preservation |
 
 ### 🪝 Hooks System
-
-A lifecycle hook system that enables blocking, modification, and observability at every stage of agent execution.
 
 | Event Type | When | Can Block? |
 |---|---|---|
@@ -218,106 +220,131 @@ A lifecycle hook system that enables blocking, modification, and observability a
 | `STOP` | Agent about to stop | Yes (DENY) |
 | `SESSION_END` | Session terminates | No |
 
-**Hook Decisions:**
-- `ALLOW` — Proceed without modification
-- `DENY` — Block the action with a mandatory reason
-- `MODIFY` — Rewrite user prompt content (only for `USER_PROMPT_SUBMIT`)
+**Built-in Hooks:** `LoggingHook` (logs all events), `SecurityHook` (integrates with security analyzers and blocks dangerous actions), `AuditHook` (JSONL audit trail with secret sanitization).
 
-**Capabilities:** Priority-based execution, per-hook timeout protection, error isolation, aggregate result computation, built-in metrics.
+**Hook Loading:** YAML config with `class_path` imports, Python module auto-discovery from manusclaw home directory.
 
-### 🧠 Context Management
-
-Intelligent context window management that prevents overflow while preserving critical information.
+### 🧠 Context Management — View + Condenser
 
 | Feature | Description |
 |---|---|
-| **View System** | Linear event projection with manipulation indices for safe condensation |
-| **View Properties** | `BatchAtomicity`, `ObservationUniqueness`, `ToolCallMatching`, `ToolLoopAtomicity` |
-| **LLM Summarizing Condenser** | Uses a dedicated condenser LLM to generate summaries of removed events |
+| **View System** | Linear event projection with `manipulation_indices` — safe points for condensation |
+| **View Properties** | `BatchAtomicity`, `ObservationUniqueness`, `ToolCallMatching`, `ToolLoopAtomicity` — structural integrity guarantees |
+| **LLM Summarizing Condenser** | Dedicated condenser LLM generates summaries of removed events; 3 trigger reasons: REQUEST (hard), TOKENS (soft), EVENTS (soft) |
 | **Rolling Window Condenser** | Keeps the N most recent events, drops the rest |
+| **Pipeline Condenser** | Chains multiple condensers with `stop_on_first` short-circuit and aggregated metrics |
+| **Progressive Truncation** | If condenser LLM fails, progressively truncates with retry scaling (5 retries, 0.8x per retry) |
 | **No-op Condenser** | Pass-through for when condensation is disabled |
-| **Condensation Pipeline** | Composable pipeline of condensers with metrics and fallback |
-| **Progressive Truncation** | If condenser LLM fails, progressively truncates with retry scaling |
 
 ### 💬 Conversation System
 
-Robust conversation management with stuck detection, cancellation, and fair concurrency.
-
 | Feature | Description |
 |---|---|
-| **Local Conversation** | In-process conversation with event log and state machine |
-| **Remote Conversation** | Network-backed conversation for distributed deployments |
-| **StuckDetector** | 5 detection patterns: repeating actions, action-error loops, monologue, alternating patterns, context overflow |
+| **Local Conversation** | In-process conversation with event log, async support, fork/branch, confirmation mode |
+| **Remote Conversation** | WebSocket-backed conversation for distributed deployments with reconnection + event buffering |
+| **StuckDetector** | 5 detection patterns: repeating action-observation, action-error loops, agent monologue, alternating patterns, context window overflow |
 | **CancellationToken** | Thread-safe cancellation with `raise_if_cancelled()`, timeout support, context manager |
 | **FIFOLock** | Fair, starvation-free lock (sync + async variants) guaranteeing FIFO ordering |
-| **Conversation State Machine** | IDLE → RUNNING → FINISHED with state-update events |
+| **Conversation Factory** | Auto-creates Local or Remote based on configuration |
 
 ### ⚡ Parallel Tool Execution
 
-Fine-grained resource locking for safe concurrent tool execution.
+| Feature | Description |
+|---|---|
+| **ResourceLockManager** | Readers-writer locking per resource with deadlock prevention via global acquisition ordering |
+| **Declared Resources** | Each tool declares `READ`/`WRITE` dependencies: `file_resource()`, `terminal_resource()`, `network_resource()` |
+| **ParallelToolExecutor** | Thread-pool concurrent execution with resource conflict serialization |
+| **AsyncParallelToolExecutor** | `asyncio.gather` variant with semaphore for concurrency capping |
+| **Metrics** | Execution time, concurrency level, resource conflicts, per-tool timeout |
+
+### 🧠 LLM Integration — 100+ Providers + Offline + Streaming
+
+#### Cloud Providers
+
+| Provider | Class | Auth |
+|---|---|---|
+| **OpenAI** | Native SDK | `OPENAI_API_KEY` (supports `_2`, `_3` for pool) |
+| **Anthropic** | Native SDK | `ANTHROPIC_API_KEY` |
+| **Google/Gemini** | `google-generativeai` | `GOOGLE_API_KEY` |
+| **Mistral** | `MistralClient` | `MISTRAL_API_KEY` |
+| **AWS Bedrock** | `BedrockClient` (Converse API) | `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` |
+| **100+ via litellm** | `LiteLLMClient` | Varies per provider |
+
+#### Offline / Local / Air-Gapped Providers
+
+| Provider | Class | Details |
+|---|---|---|
+| **GGUF** | `GGUFRouter` | llama-cpp-python, fully offline, GPU support (`n_gpu_layers`), tool-call parsing from text |
+| **Ollama** | `OllamaRouter` | Official SDK, local + Ollama Cloud with API key |
+| **LMStudio** | `OpenAICompatRouter` | OpenAI-compatible endpoint at `localhost:1234` |
+| **text-gen-webui** | `OpenAICompatRouter` | OpenAI-compatible endpoint at `localhost:5000` |
+| **HuggingFace** | `HuggingFaceRouter` | Inference API + Spaces + Dedicated Endpoints |
+| **Any OpenAI-compat** | `OpenAICompatRouter` | Generic REST endpoint (Groq, Together, etc.) |
+| **Mock** | `MockLLM` | No API key needed, safe for immediate testing |
+
+#### Pre-Configured Provider TOMLs
+
+| Config File | Service | Type |
+|---|---|---|
+| `ollama.toml` | Ollama (local) | Free / Local |
+| `ollama-cloud.toml` | Ollama Cloud | Paid / API |
+| `openrouter.toml` | OpenRouter (200+ models) | Paid / API |
+| `pollinations.toml` | Pollinations AI | **Free / No key needed** |
+| `7llm.toml` | 7LLM | Paid / API |
+| `opencode.toml` | OpenCode (deepseek-v4-flash-free) | **Free / No key needed** |
+
+#### LLM Infrastructure
 
 | Feature | Description |
 |---|---|
-| **ResourceLockManager** | Readers-writer locking per resource with deadlock prevention |
-| **Declared Resources** | Each tool declares `READ`/`WRITE` resource dependencies |
-| **Global Acquisition Ordering** | Prevents deadlock via ordered lock acquisition with timeout |
-| **FIFOLock** | Fair lock guaranteeing waiters acquire in request order (sync + async) |
-| **Async Executor** | Parallel execution of independent tool calls with resource isolation |
+| **Credential Pool** | Per-provider multi-key rotation with priority ordering, cooldown, and health tracking. Supports `OPENAI_API_KEY_2`, `_3`, etc. |
+| **Cross-Provider Rotator** | `CrossProviderRotator` — unified credential interface across all providers |
+| **Profile Rotation** | `ProfileRotator` — ordered model entries with priority, fallback weights, per-session profile selection, bounded cache |
+| **Fallback Strategy** | Configurable model chains with per-model cooldown, 8 fallback triggers (rate_limit, context_window, timeout, etc.) |
+| **Streaming** | Token-level streaming with `StreamingDeltaEvent`, SSE for web clients, backpressure handling, multi-provider chunk parsing |
+| **Enhanced Retry** | 5 backoff strategies (fixed, linear, exponential, exponential_jitter, decorrelated_jitter), retry budgets, provider-specific error mapping |
+| **Token Budget** | Per-session token tracking with grace call support and cost estimation |
+| **LLM Metrics** | Per-conversation cost tracking, latency percentiles (p50/p95/p99), budget alerts, Prometheus export |
+| **Non-Native Tool Calling** | `NonNativeToolCallingMixin` — emulates function calling for models without native support via prompt engineering + JSON extraction |
+| **Secret Redaction** | Context-aware masking of API keys, Bearer tokens, AWS secrets in prompts and logs |
 
-### 🧠 LLM Integration
-
-Comprehensive LLM provider support with enterprise-grade reliability features.
-
-| Feature | Description |
-|---|---|
-| **100+ Providers** | Via litellm: OpenAI, Anthropic, Google, Mistral, AWS Bedrock, Azure, Groq, Ollama, and more |
-| **Streaming** | Real-time delta streaming with `StreamingDeltaEvent` for UI updates |
-| **Model Failover** | Configurable failover profiles with automatic provider switching |
-| **Credential Pool** | Rotating API key pool with health tracking and automatic demotion |
-| **Token Budget** | Per-conversation token tracking with budget enforcement |
-| **Secret Redaction** | Automatic masking of API keys and secrets in prompts |
-| **Offline Router** | Local model routing for air-gapped deployments |
-| **Non-Native Tool Calling** | Emulated tool calling for providers without native support |
-
-### 🔐 Secrets Management
-
-Enterprise secret handling with encryption, lazy resolution, and audit logging.
+### 🔐 Secrets Management — Fernet Encryption
 
 | Feature | Description |
 |---|---|
-| **Fernet Encryption** | Symmetric encryption for secrets at rest using cryptography library |
-| **SecretRegistry** | Named registry with lazy resolution from backing store |
-| **File Secrets Store** | Encrypted file-based storage with namespace support |
-| **Namespace Support** | Organize secrets into logical namespaces |
-| **Audit Logging** | All secret access is logged with masked values |
-| **Thread Safety** | All operations protected by locks for concurrent access |
+| **Fernet Encryption** | Symmetric encryption for secrets at rest with `FERNET_TOKEN_PREFIX` identifier |
+| **SecretRegistry** | Named registry with lazy resolution from backing store, namespaces, caching |
+| **File Secrets Store** | Encrypted file-based storage with atomic writes and `0600` permissions |
+| **Secret Sources** | `STATIC` (provided value), `LOOKUP` (fetched from URL), `ENV` (from environment variable) |
+| **API Router** | FastAPI `/secrets` endpoints — never exposes raw values (masked with `***`) |
+| **Key Rotation** | `Cipher` supports key rotation with `add_key()` for seamless rotation |
 
-### 📦 File Storage
+### 📦 File Storage Backends
 
-Pluggable file storage with multiple backend support.
+| Backend | Use Case | Key Feature |
+|---|---|---|
+| **Local** | Filesystem storage (default) | Atomic writes, sidecar `.meta.json`, streaming |
+| **S3** | AWS S3 / MinIO | Presigned URLs, retry with backoff, async executor |
+| **GCS** | Google Cloud Storage | Signed URLs (v4), retry with backoff, async executor |
+| **In-Memory** | Testing and ephemeral | Full metadata tracking, size limits |
 
-| Backend | Use Case |
-|---|---|
-| **Local** | Filesystem storage (default) |
-| **S3** | AWS S3 / MinIO compatible |
-| **GCS** | Google Cloud Storage |
-| **In-Memory** | Testing and ephemeral data |
-
-**Factory auto-detection** from environment variables, config, or explicit parameter.
+**Factory auto-detection** from `MANUSCLAW_FILE_STORE_BACKEND` env var, config, or explicit parameter.
 
 ### 🔀 Git Provider Integrations
 
-Unified interface across five Git hosting platforms.
+| Provider | OAuth | PRs/MRs | Issues | Branches | Files | Suggested Tasks | Webhooks |
+|---|---|---|---|---|---|---|---|
+| **GitHub** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **GitLab** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Azure DevOps** | ✅ | ✅ | ✅ (Work Items) | ✅ | ✅ | ✅ | ✅ |
+| **Bitbucket** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Forgejo** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-| Provider | Capabilities |
-|---|---|
-| **GitHub** | Issues, PRs, comments, branches, file operations, suggested tasks |
-| **GitLab** | Issues, MRs, comments, branches, file operations |
-| **Azure DevOps** | Work items, PRs, repositories, pipelines |
-| **Bitbucket** | Issues, PRs, repositories, pipelines |
-| **Forgejo** | Issues, PRs, repositories (self-hosted CodeForge) |
+All providers implement a unified `GitProviderService` interface with both sync and async methods, thread-safety, rate limiting, and exponential backoff.
 
-All providers implement a unified `GitProviderService` interface for seamless switching.
+**Suggested Task Types:** `OPEN_ISSUE`, `FAILING_CHECKS`, `MERGE_CONFLICT`, `UNRESOLVED_COMMENTS`
+
+**Git Provider Router** — URL-based provider detection (10+ URL patterns including self-hosted instances) with service caching.
 
 ### 🎯 Issue & PR Resolution
 
@@ -325,104 +352,159 @@ LLM-powered automated resolution for issues, PRs, and merge conflicts.
 
 | Resolution Type | Description |
 |---|---|
-| **Issue Resolution** | Analyze reported issue, generate fix, apply changes, post summary |
-| **PR Update** | Process review feedback, update code, respond to comments |
-| **Merge Conflict Resolution** | Detect conflicts, resolve with LLM assistance, push resolution |
+| **Issue Resolution** | Analyze reported issue → generate fix → apply changes → post summary comment |
+| **PR Update** | Process review feedback → update code → respond to comments |
+| **Merge Conflict Resolution** | Detect conflicts → resolve with LLM assistance → push resolution |
+| **Comment Response** | Reply to issue/PR comments with context-aware responses |
 
-**Features:** Thread-safe execution with per-resolution locking, timeout protection, full audit trail, webhook-triggered resolution, provider-specific prompt templates.
+**Features:** Thread-safe with per-resolution locking, timeout protection, full audit trail, concurrency semaphore (max 5), Jinja2 prompt templates per provider.
 
-### 📋 Project Management
+**Webhook Handler:** HMAC-SHA256 signature verification, event deduplication, background processing with retry, provider-specific payload normalization.
 
-Integration with popular project management and communication tools.
+### 📋 Project Management — Jira + Linear + Slack
 
 | Integration | Capabilities |
 |---|---|
-| **Jira** | Create/update issues, track status, sync with Git providers |
-| **Linear** | Create/update issues, project tracking, team workflows |
-| **Slack** | Notifications, slash commands, interactive messages |
+| **Jira Cloud + DC** | OAuth/PAT auth, create/update/search issues, JQL search, comments, transitions, ADF to text, webhooks |
+| **Linear** | GraphQL API, OAuth 2.0, teams, issues, comments, suggested tasks, webhooks |
+| **Slack** | Socket Mode + API, slash commands (`/manusclaw`, `/resolve`, `/review`), Block Kit, thread conversations, interactive buttons, file uploads |
 
-### 📊 Observability
-
-Production-grade observability with distributed tracing, metrics, and health probes.
+### 📊 Observability — OpenTelemetry + Prometheus
 
 | Component | Description |
 |---|---|
-| **OpenTelemetry Tracing** | `@observe` decorator for sync/async functions, context propagation, custom span attributes |
+| **OpenTelemetry Tracing** | `@observe` decorator for sync/async functions, context propagation, custom span attributes (model, tokens, tool_name) |
 | **Prometheus Metrics** | Counters, histograms, gauges for LLM calls, tool execution, conversations, tokens, errors |
-| **Health Probes** | Kubernetes-style liveness (`/healthz`) and readiness (`/ready`) endpoints |
-| **Component Checkers** | Database, LLM provider, and sandbox health monitoring |
-| **Correlation IDs** | Distributed correlation ID propagation across service boundaries |
-| **Structured Logging** | JSON-structured logs with context enrichment |
+| **Health Probes** | Kubernetes-style liveness (`/healthz`) and readiness (`/ready`) with component checkers |
+| **Component Checkers** | `DatabaseHealthChecker`, `LLMHealthChecker`, `SandboxHealthChecker` |
+| **Correlation IDs** | Request-scoped correlation ID propagation across service boundaries, `error_id` for 500 error lookup |
+| **Structured Logging** | JSON-structured logs with context enrichment and sensitive data redaction |
+| **Metrics Export** | Prometheus exposition format, JSON dict format |
+
+**Built-in Metrics:** `llm_calls_total`, `llm_call_duration_seconds`, `tool_calls_total`, `tool_call_duration_seconds`, `conversation_duration_seconds`, `active_conversations`, `token_usage_total`, `error_count_total`
 
 ### 📨 13+ Messaging Channels
 
-Reach your agents from virtually any platform.
-
 | Channel | Type | Key Feature |
 |---|---|---|
-| **Telegram** | Bot API | Inline keyboards, file handling |
-| **Discord** | Bot | Slash commands, embeds |
-| **Slack** | Bolt SDK | Blocks, modals, events |
-| **WhatsApp** | Business API | Media messages, templates |
-| **Signal** | CLI | End-to-end encrypted |
-| **Microsoft Teams** | Bot Framework | Adaptive cards, tabs |
-| **Matrix** | Protocol | Federation, E2E encryption |
-| **IRC** | Client | Multi-network, channels |
-| **Twitch** | Chat | Stream integration |
-| **Google Chat** | Webhook | Spaces, threads |
-| **WebChat** | Built-in | WebSocket, real-time |
-| **Email** | SMTP/IMAP | Send/receive, Gmail Pub/Sub |
-| **Gateway** | Unified | Multi-adapter routing |
+| **Telegram** | Bot API | Inline keyboards, file handling, media messages |
+| **Discord** | Bot | Slash commands, embeds, thread support |
+| **Slack** | Bolt SDK | Blocks, modals, events, interactive components |
+| **WhatsApp** | Business API | Media messages, templates, read receipts |
+| **Signal** | CLI | End-to-end encrypted messaging |
+| **Microsoft Teams** | Bot Framework | Adaptive cards, tabs, channel messages |
+| **Matrix** | Protocol | Federation, E2E encryption, rooms |
+| **IRC** | Client | Multi-network, channels, CTCP |
+| **Twitch** | Chat | Stream integration, commands |
+| **Google Chat** | Webhook | Spaces, threads, cards |
+| **WebChat** | Built-in | WebSocket, real-time, canvas integration |
+| **Email** | SMTP/IMAP | Send/receive, Gmail Pub/Sub auto-reply |
+| **Messaging Gateway** | Unified | Multi-adapter routing, agent caching, eviction with cleanup |
 
-### 🎤 Voice System
-
-Hands-free interaction with wake word detection and natural conversation.
+### 🎤 Voice System — Wake Word + STT + TTS
 
 | Feature | Description |
 |---|---|
 | **Wake Word Detection** | Pvporcupine or STT-based wake word ("Hey ManusClaw") |
 | **Talk Mode** | Continuous mic → STT → agent → TTS conversation loop |
-| **Text-to-Speech** | 3 backends: OpenAI TTS, ElevenLabs, System TTS |
-| **Speech-to-Text** | 3 engines: OpenAI Whisper, Google STT, Vosk (offline) |
+| **Text-to-Speech** | 3 backends: OpenAI TTS, ElevenLabs, System TTS (espeak/piper) |
+| **Speech-to-Text** | 3 engines: OpenAI Whisper, Google STT, Vosk (fully offline) |
 
-### 🎨 Canvas UI
-
-Live visual output through the Agent-to-UI (A2UI) protocol.
+### 🎨 Canvas UI — A2UI Protocol
 
 | Feature | Description |
 |---|---|
-| **A2UI Protocol** | Real-time WebSocket updates from agent to browser |
+| **A2UI Protocol** | Real-time WebSocket updates from agent to browser with typed component model |
 | **Canvas Server** | Built-in WebSocket server for live rendering |
-| **Canvas Tool** | Agent tool for rendering charts, tables, buttons, and custom UI |
+| **Canvas Tool** | Agent tool for rendering charts, tables, buttons, text, images, containers |
+| **Chart Types** | Bar, line, scatter, pie, histogram, area, radar |
+| **Component Types** | Text, Image, Button, Table, Chart, Container — composable UI |
 | **Mobile Nodes** | Connect mobile devices as canvas nodes |
-| **Static HTML** | Standalone canvas.html for quick deployment |
+| **Static HTML** | Standalone `canvas.html` for quick deployment |
 
-### 🛠️ 18+ Tools
+### 🛠️ 17+ Tools — Intelligent Selector
 
-A comprehensive tool arsenal with intelligent selection.
+| # | Tool | Category | Description |
+|---|---|---|---|
+| 1 | **Bash** | Execution | Persistent async shell (Linux/macOS/Windows/Termux). No artificial timeout. Only OS-destroying commands blocked. Atexit cleanup for orphaned processes. |
+| 2 | **PythonExecute** | Execution | Isolated subprocess (2GB memory rlimit on Linux). No default timeout. Full stdout/stderr capture. |
+| 3 | **NodeExecute** | Execution | Execute Node.js/JavaScript in isolated subprocess |
+| 4 | **StrReplaceEditor** | Files | View, create, str_replace, insert, undo_edit — precise file operations |
+| 5 | **BrowserUse** | Web | Playwright browser: navigate, click, type, screenshot, get_text, execute_js, tabs |
+| 6 | **WebSearch** | Web | Multi-engine search: DuckDuckGo → Bing fallback with retry |
+| 7 | **Crawl4AI** | Web | Extract clean content from URLs (crawl4ai or aiohttp fallback) |
+| 8 | **ImageGenerate** | Creative | Generate images via FAL.ai (or mock). Saves to `workspace/images/` |
+| 9 | **DataVisualization** | Analysis | Generate charts (bar, line, scatter, pie, histogram). PNG or HTML with mpld3. |
+| 10 | **Memory** | Knowledge | CRUD for `MEMORY.md` and `USER.md` — persistent context files across sessions |
+| 11 | **Planning** | Planning | Create/update/mark_step/get multi-step execution plans |
+| 12 | **Delegate** | Multi-Agent | Spawn isolated subagent (Manus instance) for independent subtasks |
+| 13 | **AskHuman** | Interaction | Request clarification from user (interactive mode only) |
+| 14 | **PlatformControl** | System | Authenticate and control external platforms: GitHub, Vercel, WordPress, HuggingFace, Netlify, Discord, Telegram, generic REST |
+| 15 | **SkillManager** | Skills | Create/patch/delete/list/get skill files |
+| 16 | **CrossSessionSearch** | Knowledge | FTS5 full-text search across all past sessions |
+| 17 | **Terminate** | Control | Signal task completion |
 
-| Tool | Category | Description |
+**Tool Selector** — Confidence-based tool scoring (0.0–1.0) with heuristic keyword matching, optional LLM scoring, failure penalty, recency diversification, and public stats API.
+
+### 📡 SSH Server
+
+| Feature | Description |
+|---|---|
+| **Remote Access** | Full SSH server for remote agent control and task execution |
+| **Shell Integration** | Interactive shell with agent commands via SSH |
+| **Configurable** | Port, host, and authentication via `config.toml` or env vars |
+
+### ⏰ Cron Scheduler
+
+| Feature | Description |
+|---|---|
+| **YAML Persistence** | Cron jobs persisted to YAML with auto-reload |
+| **Webhook Delivery** | Job results delivered via webhooks |
+| **Multi-Platform Output** | Results posted to messaging channels |
+| **Auto-Cleanup** | Agent cleanup after each job execution (no resource leaks) |
+| **Secret Protection** | Webhook secrets redacted in storage, loaded from env var |
+
+### 🧩 Skills Engine
+
+Built-in skills auto-injected based on relevance to the current task:
+
+| Skill | File | Domain |
 |---|---|---|
-| `BashTool` | Execution | Shell command execution with timeout and output capture |
-| `PythonExecute` | Execution | Sandboxed Python code execution |
-| `BrowserUseTool` | Web | Browser automation with Playwright |
-| `WebSearchTool` | Web | Web search with multiple engines |
-| `Crawl4AITool` | Web | Intelligent web crawling and extraction |
-| `StrReplaceEditor` | File | Precise string replacement in files |
-| `ImageGenTool` | Creative | AI image generation |
-| `DataVizTool` | Analysis | Data visualization (charts, plots) |
-| `MemoryTool` | Knowledge | Cross-session persistent memory |
-| `DelegateTool` | Multi-Agent | Delegate subtasks to specialized agents |
-| `PlanningTool` | Planning | Task decomposition and step management |
-| `AskHumanTool` | Interaction | Request user input during execution |
-| `PlatformControl` | System | System-level platform operations |
-| `NodeExecute` | Distributed | Execute tasks on remote nodes |
-| `SkillManager` | Skills | Load and manage skill files |
-| `SelectorTool` | Meta | Heuristic tool selection with scoring |
-| `TerminateTool` | Control | Graceful agent termination |
-| `CrossSessionSearch` | Knowledge | Search across conversation history |
+| **Coding** | `coding.md` | Software development, debugging, code review |
+| **DevOps** | `devops.md` | CI/CD, Docker, Kubernetes, deployment |
+| **Data Analysis** | `data_analysis.md` | Pandas, statistics, data exploration |
+| **Research** | `research.md` | Web research, summarization, fact-checking |
+| **MLOps** | `mlops.md` | Machine learning pipelines, model training |
+| **GitHub** | `github.md` | Repository management, PR/Issue workflows |
 
-**Tool Selector** scores each tool per step using failure penalties, recency diversification, and relevance heuristics.
+### 🔌 MCP Protocol — Client + Server
+
+| Feature | Description |
+|---|---|
+| **MCP Client** | Connect to MCP servers via stdio or SSE, proxy their tools into the agent |
+| **MCP Server** | Expose manusclaw tools as MCP-compatible server |
+| **Tool Proxying** | MCP tools become native manusclaw tools with full schema conversion |
+| **Auto-Discovery** | Configure MCP servers in `config.toml` with auto-connect |
+
+### 🖥️ Desktop Apps
+
+| App | Platform | Description |
+|---|---|---|
+| **macOS Menubar** | macOS | System tray menubar app via `rumps` |
+| **Windows Hub** | Windows | Desktop hub for managing manusclaw instances |
+| **Mobile Node** | iOS/Android | Connect mobile devices as canvas nodes |
+
+### 💾 Session & Memory System
+
+| Feature | Description |
+|---|---|
+| **SessionDB** | SQLite WAL with FTS5 full-text search, session branching, compression |
+| **Session Resume** | Resume interrupted sessions with `/resume` command |
+| **Session Branching** | Fork sessions with `/branch` for parallel exploration |
+| **Long-Term Memory** | RAG-like persistent memory with FTS5 + LIKE fallback, SQLite WAL |
+| **Short-Term Memory** | Conversation buffer with refresh, snapshot, and restore |
+| **Task Queue** | Persistent SQLite task queue with priority ordering, checkpoint/resume, worker pool, deduplication |
+| **Alembic Migrations** | 7 core tables: conversations, events, sessions, tasks, credentials, secrets, audit_log |
 
 ---
 
@@ -431,30 +513,62 @@ A comprehensive tool arsenal with intelligent selection.
 ### Prerequisites
 
 - Python 3.11+
-- At least one LLM API key (OpenAI, Anthropic, etc.)
+- At least one LLM API key (or use **free** Pollinations/OpenCode providers — no key needed!)
+- Or run fully **offline** with GGUF/Ollama/HuggingFace — no internet needed!
 
 ### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/The-JDdev/ManusClaw.git
-cd ManusClaw
+git clone https://github.com/manusagents/manusclaw.git
+cd manusclaw
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -e .
+
+# Or install with all enterprise features
+pip install -e ".[all-plus]"
 
 # Configure your API key
-cp config.toml.example config.toml
-# Edit config.toml with your API keys
+cp config.toml config.toml.local
+# Edit config.toml with your API keys, or set env vars:
+export OPENAI_API_KEY=sk-...
 
 # Run your first task
 python main.py "Create a Python script that generates Fibonacci numbers"
 ```
 
+### Free / No API Key Required
+
+```bash
+# Use Pollinations (free, no key)
+# Set in config.toml: provider = "pollinations"
+# Or use OpenCode (free deepseek-v4-flash)
+# Set in config.toml: provider = "opencode"
+```
+
+### Fully Offline (Air-Gapped)
+
+```bash
+# GGUF — download any .gguf model and run with zero internet
+# Set in config.toml:
+#   provider = "gguf"
+#   model_path = "/path/to/model.gguf"
+#   n_gpu_layers = 0  # set >0 for GPU acceleration
+
+# Ollama — run ollama serve, then:
+#   provider = "ollama"
+#   model = "llama3"
+
+# HuggingFace — use Inference API, Spaces, or local models
+#   provider = "huggingface"
+#   model = "meta-llama/Llama-3-8B"
+```
+
 ### One-Line Install (Linux/macOS)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The-JDdev/ManusClaw/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/manusagents/manusclaw/main/install.sh | bash
 ```
 
 ### Windows
@@ -472,52 +586,84 @@ ManusClaw uses `config.toml` for all configuration. Key sections:
 ```toml
 [llm]
 model = "gpt-4o"
-provider = "openai"
+provider = "openai"                   # openai | anthropic | google | mistral | bedrock | ollama | gguf | huggingface | litellm | openrouter | pollinations | opencode | 7llm | mock
 api_key = ""                          # Or set OPENAI_API_KEY env var
 max_tokens = 4096
 temperature = 0.7
-streaming = true
 
-[llm.failover]
+[llm.streaming]
 enabled = true
-profiles = ["gpt-4o", "claude-sonnet-4-20250514", "gemini-2.0-flash"]
+buffer_size = 4096
+
+[llm.fallback]
+enabled = false
+chain = ["gpt-4o", "claude-3-5-sonnet-20241022", "gemini-2.0-flash"]
 
 [agent]
 max_iterations = 50
-auto_approve = false                  # Require human confirmation for risky ops
 mode = "confirm"                      # autonomous | confirm | restricted
 
 [security]
-pattern_analyzer = true
-policy_rails = true
-llm_analyzer = false                  # Enable for semantic analysis
-ensemble = true
+enabled = true
+analyzers = ["pattern", "rails"]      # pattern | rails | llm | ensemble
+confirmation_threshold = "medium"      # low | medium | high
 
 [hooks]
 enabled = true
-timeout_seconds = 30
+auto_load = true
+timeout_s = 30
 
 [context]
-condenser = "llm_summarizing"         # llm_summarizing | rolling | noop
+max_events = 200
 max_tokens = 128000
+condenser_type = "rolling"            # rolling | llm_summarizing | noop
+
+[conversation]
+max_iterations = 30
+confirmation_mode = "confirm_risky"   # never_confirm | confirm_risky
+stuck_detection = true
 
 [observability]
-tracing = true
+tracing = false
 metrics = true
 health_probes = true
+
+[secrets]
+backend = "file"                      # file | env
+encryption_enabled = true
 
 [file_store]
 backend = "local"                     # local | s3 | gcs | memory
 
-[secrets]
-encryption = true
-store = "file"                        # file | env
+[git_providers]
+default_provider = "github"           # github | gitlab | azure_devops | bitbucket | forgejo
 
-[git_provider]
-default = "github"                    # github | gitlab | azure_devops | bitbucket | forgejo
+[integrations]
+webhooks_enabled = true
+jinja_templates_dir = ""
+
+[parallel_executor]
+max_workers = 4
+timeout_s = 300
+
+[migrations]
+enabled = true
+auto_run = false
+
+[sandbox]
+backend = "docker"                    # docker | ssh | openshell
+
+[ssh]
+host = "0.0.0.0"
+port = 2222
+
+[voice]
+wake_word = "hey manusclaw"
+stt_engine = "openai"                 # openai | google | vosk (offline)
+tts_engine = "openai"                 # openai | elevenlabs | system
 ```
 
-See `config.toml` for the full configuration reference.
+See `config.toml` for the full configuration reference with all options and defaults.
 
 ---
 
@@ -564,16 +710,47 @@ docker compose --profile multi up
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 GOOGLE_API_KEY=AI...
+MISTRAL_API_KEY=...
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+MANUSCLAW_ALLOWED_ORIGINS=https://yourdomain.com
 ```
 
 ### Health Checks
 
-The server profile includes Kubernetes-style health checks:
-
 ```bash
 curl http://localhost:8765/healthz   # Liveness probe
-curl http://localhost:8765/ready     # Readiness probe
+curl http://localhost:8765/ready     # Readiness probe (checks DB, LLM, sandbox)
 ```
+
+---
+
+## 📟 Entry Points
+
+ManusClaw installs several CLI commands:
+
+| Command | Description |
+|---|---|
+| `manusclaw` | Interactive CLI agent with slash commands |
+| `manusclaw-server` | FastAPI + WebSocket server |
+| `manusclaw-cron` | Cron scheduler daemon |
+| `manusclaw-multi` | Multi-agent pipeline runner |
+| `manusclaw-sessions` | Session management tool |
+
+### CLI Slash Commands
+
+| Command | Description |
+|---|---|
+| `/model <name>` | Switch LLM model |
+| `/skills` | List available skills |
+| `/tools` | List available tools |
+| `/memory` | Show memory contents |
+| `/compress` | Compress conversation context |
+| `/new` | Start new session |
+| `/resume <id>` | Resume interrupted session |
+| `/branch` | Fork current session |
+| `/tasks` | Show background task queue |
+| `/bg <task>` | Run task in background |
 
 ---
 
@@ -590,8 +767,8 @@ We welcome contributions! Here's how to get started:
 ### Development Setup
 
 ```bash
-# Install dev dependencies
-pip install -r requirements.txt
+# Install with dev dependencies
+pip install -e ".[all]"
 
 # Run tests
 pytest tests/ -v
@@ -603,9 +780,10 @@ ruff check app/
 ### Code Style
 
 - Python 3.11+ with type hints throughout
-- Pydantic models for all data structures
-- Thread-safe by default (locks on all shared state)
+- Pydantic v2 models for all data structures (`frozen=True` where appropriate)
+- Thread-safe by default (locks on all shared state, `RLock` for reentrant access)
 - Docstrings on every public class and function
+- Crash-proof: atomic writes, atexit cleanup, proper resource management
 
 ---
 
