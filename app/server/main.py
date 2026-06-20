@@ -44,7 +44,7 @@ async def _lifespan(application: FastAPI):
             "MANUSCLAW_API_KEY not set — all endpoints are UNAUTHENTICATED. "
             "Set MANUSCLAW_API_KEY in production."
         )
-    logger.info("ManusClaw Agent Server v5.1 started.")
+    logger.info("ManusClaw Agent Server v5.1.1 started.")
     application.state.background_tasks = set()
     yield
     # Cleanup: cancel any still-running background agent tasks
@@ -60,7 +60,7 @@ async def _lifespan(application: FastAPI):
 app = FastAPI(
     title="ManusClaw Agent Server",
     description="Autonomous AI agent engine by The-JDdev (SHS Shobuj)",
-    version="5.1.0",
+    version="5.1.1",
     lifespan=_lifespan,
 )
 
@@ -230,12 +230,12 @@ class RunResponse(BaseModel):
 
 @app.get("/healthz")
 async def healthz():
-    return {"status": "ok", "version": "5.1.0", "agent": "ManusClaw"}
+    return {"status": "ok", "version": "5.1.1", "agent": "ManusClaw"}
 
 
 @app.get("/")
 async def root():
-    return {"message": "ManusClaw Agent Server v5.1 — connect via /ws/<session_id>"}
+    return {"message": "ManusClaw Agent Server v5.1.1 — connect via /ws/<session_id>"}
 
 
 @app.post("/run", response_model=RunResponse, dependencies=[Depends(require_api_key)])

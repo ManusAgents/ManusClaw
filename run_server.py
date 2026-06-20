@@ -37,7 +37,7 @@ def main() -> None:
     print(f"  ██║╚██╔╝██║██╔══██║██║╚██╗██║██║   ██║╚════██║")
     print(f"  ██║ ╚═╝ ██║██║  ██║██║ ╚████║╚██████╔╝███████║")
     print(f"  ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝")
-    print(f"  ManusClaw v5.1.0 — Agent Server  by The-JDdev (SHS Shobuj)")  # Fix: sync version
+    print(f"  ManusClaw v5.1.1 — Agent Server  by The-JDdev (SHS Shobuj)")  # Fix: sync version
     print(f"\n  Listening: http://{args.host}:{args.port}")
     print(f"  REST:      http://{args.host}:{args.port}/run")
     print(f"  WebSocket: ws://{args.host}:{args.port}/ws/<session_id>")  # Fix: ws:// not wss:// (no TLS)

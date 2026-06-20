@@ -10,7 +10,7 @@ Activation:
 
   Example:
     $ manusclaw
-    ManusClaw v5.1.0 — AI Operating Environment Active
+    ManusClaw v5.1.1 — AI Operating Environment Active
     You> Create a Python web scraper for me
     You> Build a website
     You> Analyze this data
@@ -48,7 +48,7 @@ from typing import Optional
 # Version
 # ──────────────────────────────────────────────────────────────────────────────
 
-VERSION = "5.1.0"
+VERSION = "5.1.1"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Skin definitions (data-driven, YAML-loadable)

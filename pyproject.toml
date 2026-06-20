@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "manusclaw"
-version = "5.1.0"
+version = "5.1.1"
 description = "ManusClaw: Production-grade autonomous AI agent framework by The-JDdev"
 readme = "README.md"
 requires-python = ">=3.11"

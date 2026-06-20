@@ -1,16 +1,19 @@
 <div align="center">
 
-<img src="https://img.shields.io/badge/Version-5.1.0-ff69b4?style=for-the-badge&logo=github&logoColor=white" alt="Version">
+<img src="https://img.shields.io/badge/Version-5.1.1-ff69b4?style=for-the-badge&logo=github&logoColor=white" alt="Version">
 <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python">
 <img src="https://img.shields.io/badge/License-MIT-FFD700?style=for-the-badge&logo=opensourceinitiative&logoColor=black" alt="License">
+<img src="https://img.shields.io/badge/Status-Bug--Fix%20Patch-00C853?style=for-the-badge&logo=bugsnag&logoColor=white" alt="Status">
 
 <br><br>
 
 # 🐾 M A N U S C L A W
 
-### **v5.1.0 — Enterprise-Grade Autonomous AI Agent Framework**
+### **v5.1.1 — Enterprise-Grade Autonomous AI Agent Framework (Bug-Fix Patch)**
 
 **A production-ready, self-reasoning AI agent framework with PAORR loop, DAG-based multi-agent orchestration, defense-in-depth security, 100+ LLM providers (cloud + offline/GGUF/HuggingFace), 13+ messaging channels, voice interaction, live canvas, SSH server, cron scheduler, and enterprise observability.**
+
+> **v5.1.1** is a maintenance release that resolves 32 bugs discovered in v5.1.0 across the agent core, security layer, FastAPI server, cron scheduler, secrets redaction, and multi-agent role pipeline. See [CHANGELOG.md](CHANGELOG.md) for the full audit trail.
 
 <p>
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20Docker-informational?style=flat-square" alt="Platforms">
@@ -22,6 +25,8 @@
   <img src="https://img.shields.io/badge/Channels-13%2B-00B4D8?style=flat-square&logo=message&logoColor=white" alt="Channels">
   &nbsp;•&nbsp;
   <img src="https://img.shields.io/badge/Tools-17%2B-00C853?style=flat-square" alt="Tools">
+  &nbsp;•&nbsp;
+  <img src="https://img.shields.io/badge/Tests-212%20passed-brightgreen?style=flat-square" alt="Tests">
 </p>
 
 </div>
@@ -31,6 +36,7 @@
 ## Table of Contents
 
 - [What's New in v5.1](#-whats-new-in-v51)
+- [What's Fixed in v5.1.1](#-whats-fixed-in-v511)
 - [Overview](#-overview)
 - [Architecture](#-architecture)
 - [Features](#-features)
@@ -63,6 +69,7 @@
 - [Docker Deployment](#-docker-deployment)
 - [Entry Points](#-entry-points)
 - [Contributing](#-contributing)
+- [Changelog](CHANGELOG.md)
 - [License](#-license)
 
 ---
@@ -87,6 +94,82 @@ ManusClaw v5.1 introduces enterprise-grade capabilities that transform it from a
 | **Project Mgmt** | Jira, Linear, Slack integrations for task tracking and notifications |
 | **Observability** | OpenTelemetry tracing, Prometheus metrics, K8s liveness + readiness probes |
 | **Migrations** | Alembic database migrations with 7 core tables |
+
+---
+
+## 🔧 What's Fixed in v5.1.1
+
+v5.1.1 is a maintenance release that closes 32 bugs across the agent core, security layer, FastAPI server, cron scheduler, secrets redaction, multi-agent role pipeline, and observability subsystem. All fixes are covered by the existing test suite plus two new regression tests; the full suite runs **212 passed, 2 skipped, 0 failed**.
+
+### Critical Runtime Fixes
+
+| # | Component | Bug | Fix |
+|---|---|---|---|
+| 1 | `app/agent/router.py` | `AgentRegistry._evict_idle` was declared `async` but called from sync `get()`/`put()` without `await` — eviction never ran, so idle-TTL test expected `None` but got the cached agent. | Converted `_evict_idle` to a sync method; agent `cleanup()` coroutines are scheduled fire-and-forget via `_safe_create_task`. Also fixed LRU `put()` path that moved-to-end but did not overwrite the stored agent when re-inserting an existing key. |
+| 2 | `app/cli.py` | `logger` was referenced in two functions without being imported → `NameError` on the Spinner long-operation exit path and the background-task checkpoint-restore path. | Local `from app.logger import logger as _logger` imports at the use-site. |
+| 3 | `app/conversation/stuck_detector.py` | `_action_fingerprint` referenced undefined `tool_call` instead of the local `tool_name` → `NameError` on every action without a `.function` attribute, breaking stuck detection. | Use `tool_name` consistently. |
+| 4 | `app/integrations/slack.py` | `re` was used in `@self._bolt_app.action(re.compile(...))` but never imported → `NameError` on Slack Bolt action-handler registration. | Added `import re`. |
+| 5 | `app/server/webhook_router.py` | **Route ordering bug**: `@router.post("/{hook_id}")` was declared before `@router.post("/create")`, so FastAPI matched the parameterised path first and `POST /webhooks/create` returned 404 ("Webhook 'create' not found"). Create / list / delete all broken via HTTP. | Reordered the router so literal sub-paths (`/create`, `/sign/{hook_id}`) come before the parameterised catch-all. Added regression tests using the real FastAPI TestClient. |
+| 6 | `app/observability/health.py` | `LLMHealthChecker._test_api_call` was `def` (sync) but called `llm.ask(...)` which is async → returned a coroutine object that was silently discarded (F841 `result`). The health check would always report success regardless of the LLM's actual state. | Bridge the sync/async boundary via a worker thread running `asyncio.run`. Also fixed the call signature: `LLM.ask` takes a list of `Message` objects, not a string. |
+| 7 | `app/llm/profile_rotation.py` | `ModelProfile.default()` exception fallback called `cls(name="default")` but `__init__` does not accept `name` → `TypeError` masked the original error. | Construct the profile first, then set `.name`. |
+| 8 | `app/llm/credential_pool.py` | Forward-reference `"ModelProfile"` triggered F821 (undefined name) under strict type checking. | Use `TYPE_CHECKING` import so the symbol is resolvable for type checkers without creating a runtime circular import. |
+| 9 | `app/observability/metrics.py` | `Union` was used in three module-level type hints but never imported → F821 on module import under strict checkers. | Added `Union` to the existing `typing` import. |
+| 10 | `app/voice/talk.py` | `Any` was used in two instance-variable annotations but never imported → F821. | Added `Any` to the existing `typing` import. |
+
+### Logic & Correctness Fixes
+
+| # | Component | Bug | Fix |
+|---|---|---|---|
+| 11 | `app/cron.py` | `_JOBS_FILE = Path(os.getenv(...))` was evaluated ONCE at module import. Runtime changes to `MANUSCLAW_CRON_FILE` (tests, profile switching, CLI overrides) were silently ignored. | Replaced with `_get_jobs_file()` lazy resolver called inside `_load_jobs` / `_save_jobs`. |
+| 12 | `app/cron.py` | `manusclaw-cron --trigger JOB` did not `return` after triggering → fell through to `asyncio.run(scheduler.run_forever())` and blocked the terminal forever. | Added `return`. |
+| 13 | `app/cron.py` | `--list` output overwrote `output` on every loop iteration (`output = f"{t}"`) instead of appending, so only the LAST output_target was ever shown. | Use `output += f" {t}"` and strip. |
+| 14 | `app/skills/skill_engine.py` | Same module-level-eval bug as cron.py: `_SKILLS_DIR` was set at import time and ignored subsequent `MANUSCLAW_SKILLS_DIR` changes. | Replaced with `_get_skills_dir()` lazy resolver; updated `_load_user()` and `create()` to call it. |
+| 15 | `app/tool/memory_tool.py` | Same bug: `_WORKSPACE` / `MEMORY_FILE` / `USER_FILE` frozen at import. The `tmp_workspace` pytest fixture set `MANUSCLAW_WORKSPACE` at runtime, but `MemoryTool.execute()` still wrote to the import-time path — tests passed only because they manually monkey-patched `mt.MEMORY_FILE`. | Added `_get_workspace()` / `_memory_file()` / `_user_file()` lazy resolvers; rewrote `execute()` to use them. |
+| 16 | `app/task_queue.py` | Same bug: `_WORKSPACE` / `_DB_PATH` evaluated at import. | Added `_get_db_path()` lazy resolver; `TaskQueue.__init__` calls it when no explicit path is provided. |
+| 17 | `app/llm/secret_redaction.py` | AWS-secret pattern used a non-capturing prefix group `(?:secret_key...|aws_secret...)` so `redact()` replaced the entire match including the prefix — `secret_key=ABC...` became `***REDACTED***` (prefix lost). | Converted to a capturing group and use the `\1` backreference pattern, matching the other redaction rules. |
+| 18 | `app/integrations/resolver.py` | `clear_results(older_than_hours=24)` computed `cutoff` but never used it — every terminal-status result was removed regardless of age, breaking the documented "older than N hours" contract. | Now uses `started_at` to filter by age, with a safe default (keep results we can't prove are old enough). |
+
+### Resource Leak Fixes
+
+| # | Component | Bug | Fix |
+|---|---|---|---|
+| 19 | `app/agent/roles/engineer.py` | `Manus()` instances were created for the main pass and the retry pass but `cleanup()` was never called → leaked Bash subprocesses (and any other tool resources) for the lifetime of the process. | Wrapped each Manus run in `try/finally` with a `_cleanup_agent` helper. |
+| 20 | `app/agent/roles/qa.py` | Same leak as engineer.py: the QA Manus agent was never cleaned up. | Added `try/finally` with cleanup call. |
+
+### Test Pollution Fix
+
+| # | Component | Bug | Fix |
+|---|---|---|---|
+| 21 | `tests/test_voice.py` | `test_get_tts_provider_returns_nulltts_stub` did `tts_mod._create_provider = lambda name: ...` — a permanent module-level monkeypatch that leaked into every subsequent test in the file, causing `test_get_tts_provider_preferred_openai` to receive `NullTTS` instead of `OpenAITTS`. | Use the `monkeypatch` fixture so the override is automatically restored at test teardown. |
+
+### Dead-Code / F841 Cleanup
+
+| # | Component | Issue | Resolution |
+|---|---|---|---|
+| 22 | `app/canvas/tool.py` | `_add_chart` captured `state = await self._server.update(...)` but never used it. | Now reports the resulting component count for consistency with the other canvas method. |
+| 23 | `app/file_store/s3.py` | `write_stream` computed `key = self._make_key(path)` but never used it. | Removed the assignment but kept the call for its path-traversal-validation side-effect. |
+| 24 | `app/conversation/local_conversation.py` | `_do_fork` computed `fork_log_path` but never used it. | Now logged at DEBUG level so the path is visible in diagnostics. |
+| 25 | `app/integrations/webhook_handler.py` | `handler_result = await handler(event)` discarded result. | Replaced with bare `await handler(event)` + explanatory comment. |
+| 26 | `app/parallel_executor/executor.py` | `call_lookup = {c.call_id: c for c in calls}` built but never used. | Removed with explanatory comment (results are correlated via `zip()`). |
+| 27 | `app/llm/litellm_client.py` | `except Exception as e: ... raise` — `e` unused. | Dropped the `as e` binding. |
+| 28 | `app/observability/health.py` | Two `except Exception as e: ... raise` blocks — `e` unused. | Dropped the `as e` bindings. |
+| 29 | `app/voice/wake.py` | `sample_width = 2` assigned but never used. | Converted to a comment so the int16 / 2-byte intent is preserved for future readers. |
+| 30 | `app/integrations/resolver.py` | `service` and `content` bindings unused in the `apply_changes` path. | Removed bindings with explanatory comments noting why the calls are still made. |
+
+### New Regression Tests
+
+| # | Test | Purpose |
+|---|---|---|
+| 31 | `tests/test_webhooks.py::test_webhook_router_create_endpoint_not_swallowed_by_catchall` | POSTs to `/webhooks/create` via the real FastAPI `TestClient` and asserts `200` (was `404` before the route-order fix). |
+| 32 | `tests/test_webhooks.py::test_webhook_router_trigger_still_works_after_reorder` | Ensures the parameterised `POST /webhooks/{hook_id}` route still triggers webhooks with non-literal IDs after the reorder. |
+
+### Verification
+
+- **Test suite:** `pytest` → 212 passed, 2 skipped, 0 failed (was 210 passed, 2 failed in v5.1.0).
+- **Static analysis:** `ruff check app/ --select F821,F841` → 0 errors (was 23 in v5.1.0).
+- **HTTP smoke test:** FastAPI `TestClient` hits against `/healthz`, `/`, `/tools`, `/sessions`, `/webhooks` (create / list / trigger-with-HMAC / delete) all pass.
+- **Path-traversal audit:** `LocalFileStore._resolve()` rejects `../../../etc/passwd`, `/etc/passwd`, `a/../../b`, `../outside`, `subdir/../../../etc/passwd` — all blocked with `FileStorePermissionError`.
+- **Module import audit:** all 133 main modules import cleanly under Python 3.12.
 
 ---
 
@@ -795,6 +878,6 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 
 <div align="center">
 
-**ManusClaw v5.1.0** — Built by [The-JDdev (SHS Lab)](https://github.com/The-JDdev)
+**ManusClaw v5.1.1** — Built by [The-JDdev (SHS Lab)](https://github.com/The-JDdev)
 
 </div>

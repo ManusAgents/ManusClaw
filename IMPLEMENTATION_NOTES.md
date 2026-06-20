@@ -1,4 +1,115 @@
-# ManusClaw v5.0 — Implementation Notes
+# ManusClaw v5.1.1 — Implementation Notes
+
+> **v5.1.1** is a maintenance release that closes 32 bugs discovered in
+> v5.1.0. See [CHANGELOG.md](CHANGELOG.md) for the full audit trail and
+> the `## 🔧 What's Fixed in v5.1.1` section in [README.md](README.md)
+> for a tabular breakdown.
+
+## Recent Bug Fixes (v5.1.1)
+
+The v5.1.1 patch release closed 32 bugs across the codebase. The full
+audit trail is in [CHANGELOG.md](CHANGELOG.md); the key architectural
+lessons are summarised here so future contributors don't reintroduce
+the same patterns.
+
+### Recurring Pattern: Module-Level Env-Var-Backed Path Constants
+
+**Affected modules:** `app/cron.py`, `app/skills/skill_engine.py`,
+`app/tool/memory_tool.py`, `app/task_queue.py`.
+
+**The bug:** A module-level constant was assigned from an environment
+variable at import time, e.g.:
+
+```python
+# ANTI-PATTERN — do not do this
+_JOBS_FILE = Path(os.getenv("MANUSCLAW_CRON_FILE", _DEFAULT_CRON_FILE))
+```
+
+This silently ignored any runtime changes to the env var. Tests that
+used `monkeypatch.setenv` to point at a tmp directory passed only
+because they also manually patched the module-level constant. In
+production, profile switching or CLI overrides had no effect.
+
+**The fix:** Replace the module-level constant with a lazy resolver
+function called at the use-site:
+
+```python
+# CORRECT — env var read each call
+def _get_jobs_file() -> Path:
+    return Path(os.getenv("MANUSCLAW_CRON_FILE", _DEFAULT_CRON_FILE))
+```
+
+Keep the old module-level name as a backward-compat alias for external
+code that imports it directly, but the implementation always calls the
+resolver.
+
+### Recurring Pattern: Async Method Called From Sync Context Without Await
+
+**Affected modules:** `app/agent/router.py`,
+`app/observability/health.py`.
+
+**The bug:** A method was declared `async def` but called from a sync
+caller without `await`, so the call returned a coroutine object that
+was silently discarded. In `AgentRegistry`, this meant eviction never
+ran; in `LLMHealthChecker`, the health check always reported success
+regardless of the LLM's actual state.
+
+**The fix:** Either make the caller async (preferred) or convert the
+callee to sync and bridge the async boundary explicitly (e.g. via
+`asyncio.run` in a worker thread — used in `health.py` because the
+caller is a sync FastAPI-agnostic checker).
+
+### FastAPI Route Ordering
+
+**Affected module:** `app/server/webhook_router.py`.
+
+**The bug:** `@router.post("/{hook_id}")` was declared before
+`@router.post("/create")`, so FastAPI matched the parameterised path
+first and `POST /webhooks/create` was treated as
+`trigger_webhook(hook_id="create")` → 404.
+
+**The fix:** Declare literal sub-paths (`/create`, `/sign/{hook_id}`)
+BEFORE the parameterised catch-all (`/{hook_id}`). Documented in the
+router module docstring and locked in with two regression tests using
+the real FastAPI `TestClient`.
+
+**Rule of thumb:** In FastAPI, route order matters. Always put literal
+paths before parameterised paths sharing the same HTTP verb.
+
+### Resource Cleanup in Multi-Agent Roles
+
+**Affected modules:** `app/agent/roles/engineer.py`,
+`app/agent/roles/qa.py`.
+
+**The bug:** `Manus()` instances were created inside `_think_act_publish`
+but `cleanup()` was never called, leaking the persistent Bash
+subprocess (and any other tool resources) for the lifetime of the
+process. Each retry created a fresh `Manus()` and leaked another.
+
+**The fix:** Wrap each `Manus()` use in `try/finally` with a
+`_cleanup_agent` helper that calls `agent.cleanup()` and awaits it if
+the return value is awaitable.
+
+**Rule of thumb:** Anything that creates a `Manus()` (or any agent
+with persistent resources) MUST clean it up in a `finally` block. The
+`PlanningFlow` already had this pattern (`_cleanup_agents`); roles
+just hadn't adopted it.
+
+### Test Pollution via Module-Level Monkeypatching
+
+**Affected file:** `tests/test_voice.py`.
+
+**The bug:** A test did `tts_mod._create_provider = lambda name: ...`
+directly on the module — a permanent mutation that leaked into every
+subsequent test in the same module, causing the next test to receive
+`NullTTS` instead of `OpenAITTS`.
+
+**The fix:** Use the `monkeypatch` pytest fixture, which automatically
+restores the original attribute at test teardown.
+
+**Rule of thumb:** Never mutate module-level state directly in tests.
+Always go through `monkeypatch.setattr` / `monkeypatch.setenv` so
+teardown is automatic.
 
 ## Design Decisions
 

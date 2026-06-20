@@ -33,7 +33,7 @@ OS      = platform.system()           # Linux | Darwin | Windows
 ARCH    = platform.machine().lower()  # x86_64 | arm64 | amd64
 
 EXE_NAME = "manusclaw.exe" if OS == "Windows" else "manusclaw"
-TAG_NAME = f"v4.0.0-{OS.lower()}-{ARCH}"
+TAG_NAME = f"v5.1.1-{OS.lower()}-{ARCH}"
 
 
 def run(cmd: list[str]) -> None:
