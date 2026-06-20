@@ -710,7 +710,10 @@ class WebhookHandler:
 
         for handler in all_handlers:
             try:
-                handler_result = await handler(event)
+                # Result is intentionally discarded — each handler's
+                # contribution is captured via the audit trail / stats
+                # counters. We only need to know if it succeeded.
+                await handler(event)
                 last_error = None
 
             except Exception as exc:

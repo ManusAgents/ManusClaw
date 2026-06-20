@@ -167,3 +167,90 @@ def test_format_prompt_empty_template(webhook_manager):
 
 def test_format_prompt_no_placeholders(webhook_manager):
     assert webhook_manager._format_prompt("static text", {"key": "val"}) == "static text"
+
+
+# ── FastAPI route ordering regression test ────────────────────────────────────
+# Regression: POST /webhooks/create was previously matched against
+# POST /webhooks/{hook_id} (hook_id="create") and returned 404 because
+# no webhook named "create" was registered. The fix re-orders the router
+# so literal sub-paths are declared before the parameterised catch-all.
+
+def test_webhook_router_create_endpoint_not_swallowed_by_catchall(tmp_path, monkeypatch):
+    """``POST /webhooks/create`` must hit ``create_webhook``, not
+    ``trigger_webhook(hook_id="create")``.
+
+    Uses FastAPI's TestClient against the real router so the route-order
+    regression is caught at test time, not at runtime in production.
+    """
+    import app.server.webhook_router as router_mod
+
+    # Isolate webhook DB per test. Patch the router module's bound
+    # reference (not the original ``app.server.webhooks.webhook_manager``)
+    # because the router imported the singleton by name at module load.
+    mgr = WebhookManager(db_path=tmp_path / "router_order.db")
+    monkeypatch.setattr(router_mod, "webhook_manager", mgr)
+
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app.server.webhook_router import router
+
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+
+    # Create — must return 200 with the registered webhook, NOT 404.
+    r = client.post("/webhooks/create", json={
+        "hook_id": "router-order-hook",
+        "prompt_template": "Test {{payload.x}}",
+    })
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["hook_id"] == "router-order-hook"
+    assert body["prompt_template"] == "Test {{payload.x}}"
+
+    # List — must include the new hook.
+    r = client.get("/webhooks")
+    assert r.status_code == 200
+    ids = [h["hook_id"] for h in r.json()["webhooks"]]
+    assert "router-order-hook" in ids
+
+    # Delete — must succeed.
+    r = client.delete("/webhooks/router-order-hook")
+    assert r.status_code == 200
+    assert r.json() == {"status": "deleted", "hook_id": "router-order-hook"}
+
+
+def test_webhook_router_trigger_still_works_after_reorder(tmp_path, monkeypatch):
+    """The parameterised POST /webhooks/{hook_id} route must still work
+    for non-literal hook_ids after the route-order fix.
+
+    NOTE: ``webhook_router`` imports ``webhook_manager`` by name at
+    module load, so monkeypatching ``app.server.webhooks.webhook_manager``
+    doesn't reach the already-bound reference. We therefore patch the
+    bound reference in ``app.server.webhook_router`` directly.
+    """
+    import app.server.webhook_router as router_mod
+
+    mgr = WebhookManager(db_path=tmp_path / "trigger.db")
+    monkeypatch.setattr(router_mod, "webhook_manager", mgr)
+    mgr.register(WebhookConfig(
+        hook_id="real-hook",
+        prompt_template="Hi {{payload.name}}",
+    ))
+
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app.server.webhook_router import router
+
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+
+    # Trigger with a payload that satisfies the template.
+    r = client.post("/webhooks/real-hook", json={"name": "world"})
+    # The trigger runs the agent (MockLLM in test env), so we expect 200.
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "ok"
+    assert body["hook_id"] == "real-hook"
+

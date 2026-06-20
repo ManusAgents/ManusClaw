@@ -182,7 +182,9 @@ class VoiceWakeDetector:
         sample_rate = self._porcupine.sample_rate
         frame_length = self._porcupine.frame_length
         channels = 1
-        sample_width = 2  # int16
+        # sample_width = 2 bytes (int16) — kept as a comment for clarity,
+        # since pyaudio.paInt16 below implies this but the explicit value
+        # is useful when porting to other audio libraries.
 
         try:
             self._pa_stream = pa.open(

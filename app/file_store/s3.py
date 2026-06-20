@@ -449,7 +449,10 @@ class S3FileStore(FileStore):
         chunks without buffering the entire file in memory.
         """
         self._validate_path(path)
-        key = self._make_key(path)
+        # _make_key is called for the validation side-effect (path-traversal
+        # check) and to keep the impl parallel with write(). The key itself
+        # is recomputed inside self.write() below, so we don't store it here.
+        self._make_key(path)
 
         if not overwrite and await self.exists(path):
             raise FileAlreadyExistsError(path)

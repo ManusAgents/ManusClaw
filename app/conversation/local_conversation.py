@@ -510,7 +510,10 @@ class LocalConversation(BaseConversation):
         # Create a new event log for the fork
         log_dir = os.path.dirname(self._event_log._path) if hasattr(self._event_log, '_path') else tempfile.mkdtemp(prefix="manusclaw_fork_")
         os.makedirs(log_dir, exist_ok=True)
+        # Compose the expected log path for diagnostics (the LocalConversation
+        # constructor uses ``event_log_dir`` + conversation_id to name the file).
         fork_log_path = os.path.join(log_dir, new_id)
+        logger.debug(f"[LocalConversation:{self._id[:8]}] Forking to {fork_log_path}")
 
         forked = LocalConversation(
             conversation_id=new_id,

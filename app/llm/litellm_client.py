@@ -375,7 +375,7 @@ class LiteLLMClient:
 
             return response
 
-        except Exception as e:
+        except Exception:
             is_error = True
             raise
 

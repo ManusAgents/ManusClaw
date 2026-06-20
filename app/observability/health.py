@@ -198,7 +198,7 @@ class DatabaseHealthChecker(HealthChecker):
                 cursor = conn.execute("SELECT 1")
                 cursor.fetchone()
                 conn.close()
-            except Exception as e:
+            except Exception:
                 conn.close()
                 raise
 
@@ -328,15 +328,46 @@ class LLMHealthChecker(HealthChecker):
             )
 
     def _test_api_call(self, details: Dict[str, Any], start: float) -> ComponentHealth:
-        """Attempt a minimal LLM API call to verify connectivity."""
+        """Attempt a minimal LLM API call to verify connectivity.
+
+        ``LLM.ask`` is async, but ``check()`` is sync — we bridge with
+        ``asyncio.run`` so this health-check can be invoked from both
+        sync and async callers (the FastAPI health endpoint already
+        runs in a worker thread, so blocking here is acceptable).
+        """
         try:
+            import asyncio
             from app.llm.llm import LLM
+            from app.schema import Message
 
             llm = LLM()
             # Use a very small prompt and token limit
-            result = llm.ask("Say 'ok' and nothing else.", max_tokens=5)
+            try:
+                # Try to use the running loop first (FastAPI / asyncio context)
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            async def _call():
+                return await llm.ask(
+                    [Message.user("Say 'ok' and nothing else.")],
+                    max_tokens=5,
+                )
+
+            if loop is not None:
+                # We're inside a running loop — schedule on it.
+                # NOTE: this only works if the caller has NOT already
+                # blocked the loop. FastAPI's run_in_executor path
+                # satisfies this.
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    result = pool.submit(asyncio.run, _call).result(timeout=30)
+            else:
+                result = asyncio.run(_call())
+
             duration_ms = (time.monotonic() - start) * 1000
             details["api_call_success"] = True
+            details["response_preview"] = (getattr(result, "content", "") or "")[:50]
             return ComponentHealth(
                 name=self.name,
                 status=HealthStatus.HEALTHY,
@@ -344,7 +375,7 @@ class LLMHealthChecker(HealthChecker):
                 details=details,
                 duration_ms=duration_ms,
             )
-        except Exception as e:
+        except Exception:
             raise
 
 

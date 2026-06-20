@@ -588,7 +588,9 @@ class AsyncParallelToolExecutor:
         wall_start = time.monotonic()
         groups, conflict_count = _build_scheduling_groups(calls)
 
-        call_lookup = {c.call_id: c for c in calls}
+        # call_lookup was previously built here but never used — the
+        # results are correlated with calls via zip() below, which is
+        # both simpler and O(n) rather than the O(n) dict lookup.
 
         # Semaphore to cap concurrency
         semaphore = asyncio.Semaphore(self._max_concurrency)

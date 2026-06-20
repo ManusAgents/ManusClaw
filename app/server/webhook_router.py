@@ -6,7 +6,15 @@ Endpoints:
     POST /webhooks/{hook_id}     — Trigger a webhook (called by external services)
     GET  /webhooks                — List all registered webhooks
     POST /webhooks/create         — Create/register a new webhook
+    GET  /webhooks/sign/{hook_id} — Generate HMAC signature (dev/test helper)
     DELETE /webhooks/{hook_id}   — Unregister a webhook
+
+Route ordering
+--------------
+FastAPI matches routes in declaration order. The parameterised
+``/{hook_id}`` route MUST be declared AFTER any literal sub-paths
+(``/create``, ``/sign/{hook_id}``) — otherwise POST ``/webhooks/create``
+is treated as ``trigger_webhook(hook_id="create")`` and returns 404.
 """
 from __future__ import annotations
 
@@ -22,7 +30,106 @@ from app.server.webhooks import WebhookConfig, WebhookManager, webhook_manager
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
-# ─── Trigger Webhook ──────────────────────────────────────────────────────────
+
+# ─── List Webhooks (declared first — no path collision) ─────────────────────
+
+@router.get("")
+async def list_webhooks() -> dict[str, Any]:
+    """List all registered webhooks.
+
+    Returns:
+        Dictionary with list of webhook configurations (hmac_secret omitted).
+    """
+    hooks = webhook_manager.list_all()
+    return {
+        "webhooks": [h.to_dict() for h in hooks],
+        "count": len(hooks),
+    }
+
+
+# ─── Create Webhook (literal path — must come before /{hook_id}) ────────────
+
+@router.post("/create")
+async def create_webhook(request: Request) -> dict[str, Any]:
+    """Create and register a new webhook.
+
+    Request body (JSON):
+        hook_id:         Unique webhook identifier (auto-generated if omitted)
+        url:              Informational URL for the webhook source
+        prompt_template:  Template for the agent prompt (``{{payload.field}}`` syntax)
+        hmac_secret:      Shared secret for HMAC-SHA256 verification (empty to disable)
+        target_session:   Session ID to route agent prompts to (optional)
+        enabled:          Whether the webhook is active (default: true)
+
+    Returns:
+        The created webhook configuration.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    config = WebhookConfig(
+        hook_id=body.get("hook_id", ""),
+        url=body.get("url", ""),
+        prompt_template=body.get("prompt_template", ""),
+        hmac_secret=body.get("hmac_secret", ""),
+        target_session=body.get("target_session", ""),
+        enabled=body.get("enabled", True),
+    )
+
+    if not config.prompt_template:
+        raise HTTPException(
+            status_code=400,
+            detail="prompt_template is required",
+        )
+
+    registered = webhook_manager.register(config)
+
+    logger.info(f"[Webhooks] Created webhook: {registered.hook_id}")
+    return registered.to_dict()
+
+
+# ─── Generate HMAC Helper (literal path — must come before /{hook_id}) ──────
+
+@router.get("/sign/{hook_id}")
+async def sign_payload(hook_id: str, payload: str = "") -> dict[str, str]:
+    """Generate an HMAC-SHA256 signature for testing webhook verification.
+
+    This is a utility endpoint for development and testing.
+
+    Args:
+        hook_id: The webhook ID to generate a signature for.
+        payload: The JSON payload string to sign.
+
+    Returns:
+        The HMAC signature.
+    """
+    config = webhook_manager.get(hook_id)
+    if config is None:
+        raise HTTPException(status_code=404, detail=f"Webhook '{hook_id}' not found")
+
+    if not config.hmac_secret:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Webhook '{hook_id}' has no HMAC secret configured",
+        )
+
+    payload_bytes = payload.encode("utf-8")
+    signature = hmac.new(
+        config.hmac_secret.encode("utf-8"),
+        payload_bytes,
+        hashlib.sha256,
+    ).hexdigest()
+
+    return {
+        "hook_id": hook_id,
+        "signature": f"sha256={signature}",
+        "header_name": "X-Hub-Signature-256",
+    }
+
+
+# ─── Trigger Webhook (parameterised path — declared LAST among POST routes) ─
 
 @router.post("/{hook_id}")
 async def trigger_webhook(
@@ -84,86 +191,7 @@ async def trigger_webhook(
     return result
 
 
-# ─── List Webhooks ──────────────────────────────────────────────────────────
-
-@router.get("")
-async def list_webhooks() -> dict[str, Any]:
-    """List all registered webhooks.
-
-    Returns:
-        Dictionary with list of webhook configurations (hmac_secret omitted).
-    """
-    hooks = webhook_manager.list_all()
-    return {
-        "webhooks": [h.to_dict() for h in hooks],
-        "count": len(hooks),
-    }
-
-
-# ─── Create Webhook ────────────────────────────────────────────────────────
-
-class CreateWebhookRequest:
-    """Pydantic-like request body for webhook creation (using dict for simplicity)."""
-
-    def __init__(
-        self,
-        hook_id: str = "",
-        url: str = "",
-        prompt_template: str = "",
-        hmac_secret: str = "",
-        target_session: str = "",
-        enabled: bool = True,
-    ) -> None:
-        self.hook_id = hook_id
-        self.url = url
-        self.prompt_template = prompt_template
-        self.hmac_secret = hmac_secret
-        self.target_session = target_session
-        self.enabled = enabled
-
-
-@router.post("/create")
-async def create_webhook(request: Request) -> dict[str, Any]:
-    """Create and register a new webhook.
-
-    Request body (JSON):
-        hook_id:         Unique webhook identifier (auto-generated if omitted)
-        url:              Informational URL for the webhook source
-        prompt_template:  Template for the agent prompt (``{{payload.field}}`` syntax)
-        hmac_secret:      Shared secret for HMAC-SHA256 verification (empty to disable)
-        target_session:   Session ID to route agent prompts to (optional)
-        enabled:          Whether the webhook is active (default: true)
-
-    Returns:
-        The created webhook configuration.
-    """
-    try:
-        body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON body")
-
-    config = WebhookConfig(
-        hook_id=body.get("hook_id", ""),
-        url=body.get("url", ""),
-        prompt_template=body.get("prompt_template", ""),
-        hmac_secret=body.get("hmac_secret", ""),
-        target_session=body.get("target_session", ""),
-        enabled=body.get("enabled", True),
-    )
-
-    if not config.prompt_template:
-        raise HTTPException(
-            status_code=400,
-            detail="prompt_template is required",
-        )
-
-    registered = webhook_manager.register(config)
-
-    logger.info(f"[Webhooks] Created webhook: {registered.hook_id}")
-    return registered.to_dict()
-
-
-# ─── Delete Webhook ────────────────────────────────────────────────────────
+# ─── Delete Webhook (DELETE verb — no collision with POST /create) ──────────
 
 @router.delete("/{hook_id}")
 async def delete_webhook(hook_id: str) -> dict[str, str]:
@@ -181,42 +209,3 @@ async def delete_webhook(hook_id: str) -> dict[str, str]:
 
     logger.info(f"[Webhooks] Deleted webhook: {hook_id}")
     return {"status": "deleted", "hook_id": hook_id}
-
-
-# ─── Generate HMAC Helper ─────────────────────────────────────────────────
-
-@router.get("/sign/{hook_id}")
-async def sign_payload(hook_id: str, payload: str = "") -> dict[str, str]:
-    """Generate an HMAC-SHA256 signature for testing webhook verification.
-
-    This is a utility endpoint for development and testing.
-
-    Args:
-        hook_id: The webhook ID to generate a signature for.
-        payload: The JSON payload string to sign.
-
-    Returns:
-        The HMAC signature.
-    """
-    config = webhook_manager.get(hook_id)
-    if config is None:
-        raise HTTPException(status_code=404, detail=f"Webhook '{hook_id}' not found")
-
-    if not config.hmac_secret:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Webhook '{hook_id}' has no HMAC secret configured",
-        )
-
-    payload_bytes = payload.encode("utf-8")
-    signature = hmac.new(
-        config.hmac_secret.encode("utf-8"),
-        payload_bytes,
-        hashlib.sha256,
-    ).hexdigest()
-
-    return {
-        "hook_id": hook_id,
-        "signature": f"sha256={signature}",
-        "header_name": "X-Hub-Signature-256",
-    }

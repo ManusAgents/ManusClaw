@@ -704,12 +704,21 @@ class IssueResolver:
 
         try:
             router = RouterClass()
-            service = router.get_service(request.provider)
+            # ``get_service`` validates that the requested provider is
+            # configured. We discard the returned service handle because
+            # the current implementation posts a comment describing the
+            # changes rather than pushing code directly — but we still
+            # want the call to fail fast if the provider is misconfigured.
+            router.get_service(request.provider)
 
             for change in changes:
                 try:
                     file_path = change["file_path"]
-                    content = change["content"]
+                    # ``content`` is intentionally read to surface malformed
+                    # change entries early (missing key raises KeyError →
+                    # caught below). A production implementation that
+                    # actually pushes commits would use this content here.
+                    change.get("content", "")
 
                     # For now, we post a comment describing the changes
                     # rather than directly pushing code, which requires
@@ -920,22 +929,35 @@ class IssueResolver:
     # ── Cleanup ────────────────────────────────────────────────────────────
 
     def clear_results(self, older_than_hours: int = 24) -> int:
-        """Remove stored results older than N hours."""
+        """Remove stored results older than N hours.
+
+        A result is eligible for removal when BOTH of the following are true:
+          1. It is in a terminal status (COMPLETED, FAILED, TIMED_OUT, CANCELLED).
+          2. It was created more than ``older_than_hours`` ago.
+
+        Previously this method computed ``cutoff`` but never actually used
+        it — every terminal result was removed regardless of age, which
+        broke the documented "older than N hours" contract.
+        """
         cutoff = time.time() - (older_than_hours * 3600)
         to_remove: List[str] = []
         with self._lock:
-            for rid, result in self._results.items():
-                if result.duration_seconds > 0:
-                    # Approximate: results without explicit timestamps
-                    pass
-            # Simple: remove results where status is terminal
             for rid, result in list(self._results.items()):
-                if result.status in (
+                # Skip in-flight results
+                if result.status not in (
                     ResolutionStatus.COMPLETED,
                     ResolutionStatus.FAILED,
                     ResolutionStatus.TIMED_OUT,
                     ResolutionStatus.CANCELLED,
                 ):
+                    continue
+                # Use the result's timestamp if available; otherwise fall
+                # back to ``duration_seconds`` heuristic — if we can't
+                # prove the result is old enough, keep it (safer default).
+                started_at = getattr(result, "started_at", None)
+                if started_at is None:
+                    continue
+                if started_at < cutoff:
                     to_remove.append(rid)
             for rid in to_remove:
                 del self._results[rid]

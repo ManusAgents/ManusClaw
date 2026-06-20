@@ -100,6 +100,22 @@ class TaskEntry:
 # Persistent task queue backed by SQLite
 # ---------------------------------------------------------------------------
 
+def _get_db_path() -> Path:
+    """Resolve the task-queue DB path lazily.
+
+    Reads ``MANUSCLAW_WORKSPACE`` each call so runtime env changes
+    (tests, profile switching, CLI overrides) are honoured.
+    Previously this was a module-level constant evaluated once at
+    import, which silently ignored later env changes.
+    """
+    workspace = Path(os.getenv("MANUSCLAW_WORKSPACE", "workspace"))
+    return workspace / ".task_queue" / "tasks.db"
+
+
+# Backward-compatible module-level constants (frozen at import time).
+# TaskQueue itself calls ``_get_db_path()`` so runtime env changes
+# take effect; these constants remain for any external code that
+# still imports them.
 _WORKSPACE = Path(os.getenv("MANUSCLAW_WORKSPACE", "workspace"))
 _DB_PATH = _WORKSPACE / ".task_queue" / "tasks.db"
 
@@ -115,7 +131,7 @@ class TaskQueue:
     """
 
     def __init__(self, db_path: Optional[str] = None, max_workers: int = 2) -> None:
-        self._db_path = Path(db_path or _DB_PATH)
+        self._db_path = Path(db_path) if db_path else _get_db_path()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._max_workers = max_workers
         self._workers: list[asyncio.Task] = []

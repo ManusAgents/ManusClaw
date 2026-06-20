@@ -245,6 +245,7 @@ class CanvasTool(BaseTool):
             output=(
                 f"Chart added to canvas session '{session_id}': "
                 f"{chart_data['chart_type']} chart with {len(chart_data['labels'])} labels. "
+                f"Total components on canvas: {len(state.get('components', []))}. "
                 f"View at /canvas?session={session_id}"
             )
         )

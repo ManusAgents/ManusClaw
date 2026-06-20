@@ -6,9 +6,34 @@ from pathlib import Path
 from app.tool.base import BaseTool
 from app.schema import ToolResult
 
-_WORKSPACE = Path(os.getenv("MANUSCLAW_WORKSPACE", "workspace"))
+
+def _get_workspace() -> Path:
+    """Resolve the workspace directory lazily.
+
+    Reads ``MANUSCLAW_WORKSPACE`` each call so runtime env changes
+    (tests via ``monkeypatch.setenv``, profile switching, CLI overrides)
+    are honoured. Previously this was a module-level constant evaluated
+    once at import, which silently ignored later env changes.
+    """
+    return Path(os.getenv("MANUSCLAW_WORKSPACE", "workspace"))
+
+
+def _memory_file() -> Path:
+    return _get_workspace() / "MEMORY.md"
+
+
+def _user_file() -> Path:
+    return _get_workspace() / "USER.md"
+
+
+# Backward-compatible module-level names.
+# NOTE: These are kept for compatibility with code/tests that patch
+#       ``mt.MEMORY_FILE`` / ``mt._WORKSPACE`` directly. The MemoryTool
+#       implementation itself calls the lazy resolvers above so runtime
+#       env-var changes take effect.
+_WORKSPACE = _get_workspace()
 MEMORY_FILE = _WORKSPACE / "MEMORY.md"
-USER_FILE   = _WORKSPACE / "USER.md"
+USER_FILE = _WORKSPACE / "USER.md"
 
 # FIX: Thread lock to prevent race conditions on concurrent append operations
 _memory_lock = threading.Lock()
@@ -34,28 +59,31 @@ class MemoryTool(BaseTool):
     }
 
     async def execute(self, action: str, content: str = "") -> ToolResult:
-        _WORKSPACE.mkdir(parents=True, exist_ok=True)
+        workspace = _get_workspace()
+        memory_file = _memory_file()
+        user_file = _user_file()
+        workspace.mkdir(parents=True, exist_ok=True)
         try:
             if action == "read_memory":
-                if not MEMORY_FILE.exists():
+                if not memory_file.exists():
                     return ToolResult(output="MEMORY.md is empty.")
-                return ToolResult(output=MEMORY_FILE.read_text(encoding="utf-8"))
+                return ToolResult(output=memory_file.read_text(encoding="utf-8"))
             elif action == "write_memory":
-                MEMORY_FILE.write_text(content, encoding="utf-8")
+                memory_file.write_text(content, encoding="utf-8")
                 return ToolResult(output=f"MEMORY.md written ({len(content)} chars).")
             elif action == "append_memory":
                 # FIX: Use lock to prevent race condition on concurrent appends
                 with _memory_lock:
-                    existing = MEMORY_FILE.read_text("utf-8") if MEMORY_FILE.exists() else ""
+                    existing = memory_file.read_text("utf-8") if memory_file.exists() else ""
                     new_content = existing.rstrip() + "\n\n" + content if existing else content
-                    MEMORY_FILE.write_text(new_content, encoding="utf-8")
+                    memory_file.write_text(new_content, encoding="utf-8")
                 return ToolResult(output=f"Appended {len(content)} chars to MEMORY.md.")
             elif action == "read_user":
-                if not USER_FILE.exists():
+                if not user_file.exists():
                     return ToolResult(output="USER.md is empty.")
-                return ToolResult(output=USER_FILE.read_text(encoding="utf-8"))
+                return ToolResult(output=user_file.read_text(encoding="utf-8"))
             elif action == "write_user":
-                USER_FILE.write_text(content, encoding="utf-8")
+                user_file.write_text(content, encoding="utf-8")
                 return ToolResult(output=f"USER.md written ({len(content)} chars).")
             else:
                 return ToolResult(error=f"Unknown action: {action}")
