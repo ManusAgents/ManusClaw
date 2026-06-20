@@ -91,25 +91,31 @@ Rules:
         )
 
         engineer_agent = Manus()
-        implementation_result = await engineer_agent.run(
-            f"You are implementing code based on this design plan.\n\n"
-            f"DESIGN PLAN:\n{design}\n\n"
-            f"Implement EVERY [TASK-N] item in the plan. Run and verify each one. "
-            f"Save all outputs and generated files to workspace/. "
-            f"When all tasks are done, call terminate with a completion summary "
-            f"listing each task and its status."
-        )
+        try:
+            implementation_result = await engineer_agent.run(
+                f"You are implementing code based on this design plan.\n\n"
+                f"DESIGN PLAN:\n{design}\n\n"
+                f"Implement EVERY [TASK-N] item in the plan. Run and verify each one. "
+                f"Save all outputs and generated files to workspace/. "
+                f"When all tasks are done, call terminate with a completion summary "
+                f"listing each task and its status."
+            )
+        finally:
+            await self._cleanup_agent(engineer_agent)
 
         # Decision check — retry once with a corrective prompt if output looks thin
         decision, reason = self.decide(implementation_result)
         if decision == RoleDecision.RETRY:
             logger.warning(f"[{self.role_name}] First pass thin: {reason}. Retrying.")
             engineer_agent2 = Manus()
-            implementation_result = await engineer_agent2.run(
-                f"The previous implementation attempt was incomplete. {reason}.\n\n"
-                f"Please re-implement all remaining tasks from this plan:\n\n{design}\n\n"
-                f"Verify each task is complete before calling terminate."
-            )
+            try:
+                implementation_result = await engineer_agent2.run(
+                    f"The previous implementation attempt was incomplete. {reason}.\n\n"
+                    f"Please re-implement all remaining tasks from this plan:\n\n{design}\n\n"
+                    f"Verify each task is complete before calling terminate."
+                )
+            finally:
+                await self._cleanup_agent(engineer_agent2)
 
         logger.info(f"[{self.role_name}] Implementation done ({len(implementation_result)} chars). Publishing to QA.")
         await self.bus.publish(RoleMessage(
@@ -119,3 +125,21 @@ Rules:
             artefact=implementation_result,
         ))
         return implementation_result
+
+    @staticmethod
+    async def _cleanup_agent(agent: object) -> None:
+        """Clean up a Manus agent to release its Bash subprocess and resources.
+
+        Without this, every Engineer invocation leaks a persistent bash
+        subprocess (and any other tool resources) for the lifetime of the
+        process. This is especially important when retries create multiple
+        Manus instances per role run.
+        """
+        try:
+            cleanup = getattr(agent, "cleanup", None)
+            if cleanup is not None:
+                result = cleanup()
+                if hasattr(result, "__await__"):
+                    await result
+        except Exception as e:
+            logger.warning(f"[{EngineerRole.role_name}] Agent cleanup error: {e}")

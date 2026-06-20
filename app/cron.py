@@ -28,7 +28,17 @@ except ImportError:
     _HAS_YAML = False
 
 _DEFAULT_CRON_FILE = str(Path.home() / ".manusclaw" / "cron_jobs.yaml")
-_JOBS_FILE = Path(os.getenv("MANUSCLAW_CRON_FILE", _DEFAULT_CRON_FILE))
+
+
+def _get_jobs_file() -> Path:
+    """Resolve the cron jobs file path lazily.
+
+    Reads ``MANUSCLAW_CRON_FILE`` each time so that runtime changes
+    (e.g. via ``monkeypatch.setenv`` in tests, or per-invocation CLI
+    overrides) are honoured. Previously this was a module-level constant
+    evaluated once at import, which silently ignored later env changes.
+    """
+    return Path(os.getenv("MANUSCLAW_CRON_FILE", _DEFAULT_CRON_FILE))
 
 
 @dataclass
@@ -113,13 +123,14 @@ class CronScheduler:
         self._load_jobs()
 
     def _load_jobs(self) -> None:
-        if not _JOBS_FILE.exists():
+        jobs_file = _get_jobs_file()
+        if not jobs_file.exists():
             return
         if not _HAS_YAML:
             logger.warning("[Cron] PyYAML not installed — cannot load persisted jobs. pip install pyyaml")
             return
         try:
-            data = _yaml.safe_load(_JOBS_FILE.read_text()) or {}
+            data = _yaml.safe_load(jobs_file.read_text()) or {}
             for job_id, d in data.items():
                 kwargs = {k: v for k, v in d.items() if k != "job_id"}
                 # FIX: Restore webhook_secret from environment variable
@@ -137,7 +148,8 @@ class CronScheduler:
             logger.warning("[Cron] PyYAML not installed — job persistence disabled.")
             return
         try:
-            _JOBS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            jobs_file = _get_jobs_file()
+            jobs_file.parent.mkdir(parents=True, exist_ok=True)
             # FIX: Don't persist webhook_secret in plaintext YAML.
             # Instead, store a placeholder and retrieve the actual secret
             # from the MANUSCLAW_WEBHOOK_SECRET env var at load time.
@@ -148,7 +160,7 @@ class CronScheduler:
                 if job_data.get("webhook_secret"):
                     job_data["webhook_secret"] = "REDACTED_USE_ENV"
                 data[jid] = job_data
-            _JOBS_FILE.write_text(_yaml.dump(data, default_flow_style=False))
+            jobs_file.write_text(_yaml.dump(data, default_flow_style=False))
         except Exception as e:
             logger.warning(f"[Cron] Could not save jobs: {e}")
 
@@ -447,7 +459,8 @@ Examples:
             if j.webhook_url:
                 output = f"webhook:{j.webhook_url[:25]}..."
             for t in j.output_targets:
-                output = f"{t}"
+                output += f" {t}"
+            output = output.strip()
             print(f"{j.job_id:<20} {j.name:<24} {j.cron_expr:<16} {j.run_count:>5}  {output:<30} {status}")
         return
 
@@ -493,6 +506,7 @@ Examples:
     if args.trigger:
         job = scheduler.trigger_job(args.trigger)
         print(f"Job '{args.trigger}' scheduled to run on next tick." if job else f"Job '{args.trigger}' not found.")
+        return
 
     # Default: run the scheduler (also triggered by --run)
     try:

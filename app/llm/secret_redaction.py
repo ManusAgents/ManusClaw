@@ -18,7 +18,9 @@ _PATTERNS = [
     # FIX: AWS secret key pattern — was too broad (matched ANY 40-char base64
     # string including valid content). Now requires a leading context marker
     # (secret, secret_key, aws_secret) to avoid false positives.
-    (r'(?:secret[_-]?key[\s:=]+[\'"]?|aws[_-]?secret[\s:=]+[\'"]?)([A-Za-z0-9/+]{40})', None),
+    # Also capture the prefix in a group so the redact() helper preserves it
+    # (otherwise "secret_key=ABC..." would lose the "secret_key=" prefix).
+    (r'(secret[_-]?key[\s:=]+[\'"]?|aws[_-]?secret[\s:=]+[\'"]?)([A-Za-z0-9/+]{40})', r'\1'),
 ]
 
 

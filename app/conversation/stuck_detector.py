@@ -106,7 +106,7 @@ def _action_fingerprint(event: Any) -> str:
             args = getattr(func, "arguments", "")
             raw = f"{name}:{args}"
         else:
-            raw = str(tool_call)
+            raw = str(tool_name)
     else:
         raw = str(event)
     return hashlib.md5(raw.encode()).hexdigest()[:12]

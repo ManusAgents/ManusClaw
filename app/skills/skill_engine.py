@@ -32,8 +32,18 @@ except ImportError:
     _HAS_YAML = False
 
 _DEFAULT_SKILLS_DIR = str(Path.home() / ".manusclaw" / "skills")
-_SKILLS_DIR = Path(os.getenv("MANUSCLAW_SKILLS_DIR", _DEFAULT_SKILLS_DIR))
 _BUILTIN_SKILLS_DIR = Path(__file__).parent / "builtin"
+
+
+def _get_skills_dir() -> Path:
+    """Resolve the user skills directory lazily.
+
+    Reads ``MANUSCLAW_SKILLS_DIR`` each call so runtime changes
+    (tests, profile switching, CLI overrides) are honoured.
+    Previously this was a module-level constant evaluated once at
+    import, which silently ignored later env changes.
+    """
+    return Path(os.getenv("MANUSCLAW_SKILLS_DIR", _DEFAULT_SKILLS_DIR))
 
 
 @dataclass
@@ -144,9 +154,10 @@ class SkillEngine:
         logger.debug(f"[SkillEngine] Loaded {len(self._skills)} built-in skills")
 
     def _load_user(self) -> None:
-        if not _SKILLS_DIR.exists():
+        skills_dir = _get_skills_dir()
+        if not skills_dir.exists():
             return
-        for p in _SKILLS_DIR.rglob("*.md"):
+        for p in skills_dir.rglob("*.md"):
             skill = _parse_skill_file(p)
             if skill and skill.enabled:
                 self._skills[skill.name] = skill
@@ -162,11 +173,12 @@ class SkillEngine:
 
     def create(self, name: str, description: str, content: str,
                tags: Optional[list[str]] = None, version: str = "1.0.0") -> Skill:
-        _SKILLS_DIR.mkdir(parents=True, exist_ok=True)
+        skills_dir = _get_skills_dir()
+        skills_dir.mkdir(parents=True, exist_ok=True)
         skill = Skill(
             name=name, description=description, version=version,
             content=content, tags=tags or [],
-            path=_SKILLS_DIR / f"{name}.md",
+            path=skills_dir / f"{name}.md",
         )
         if skill.path:
             skill.path.write_text(skill.to_file_content(), encoding="utf-8")

@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import os
 import tempfile
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from app.logger import logger
 from app.voice.tts import TTSProvider, get_tts_provider

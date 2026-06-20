@@ -11,9 +11,12 @@ Keys auto-recover after a cooldown window.
 import asyncio
 import time
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from app.logger import logger
+
+if TYPE_CHECKING:
+    from app.llm.profile_rotation import ModelProfile
 
 
 @dataclass

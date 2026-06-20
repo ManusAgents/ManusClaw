@@ -210,7 +210,8 @@ class Spinner:
             elapsed = _time.monotonic() - self._start_time
             if elapsed > 60:
                 mins, secs = divmod(int(elapsed), 60)
-                logger.info(f"[Spinner] Long operation completed: {mins}m {secs}s")
+                from app.logger import logger as _logger
+                _logger.info(f"[Spinner] Long operation completed: {mins}m {secs}s")
         if self._status:
             self._status.__exit__(*args)
         else:
@@ -472,7 +473,8 @@ async def _execute_background_task(task_entry) -> str:
             from app.schema import Message
             messages = [Message.from_dict(m) for m in task_entry.checkpoint.memory_snapshot]
             agent.memory.messages = messages
-            logger.info(f"[BG Task {task_entry.id}] Restored from checkpoint at step {task_entry.checkpoint.step_count}")
+            from app.logger import logger as _logger
+            _logger.info(f"[BG Task {task_entry.id}] Restored from checkpoint at step {task_entry.checkpoint.step_count}")
 
         result = await agent.run(task_entry.prompt)
 

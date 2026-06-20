@@ -84,11 +84,13 @@ def test_elevenlabs_tts_name():
 
 # ── get_tts_provider() factory (stub mode) ─────────────────────────────────
 
-def test_get_tts_provider_returns_nulltts_stub():
+def test_get_tts_provider_returns_nulltts_stub(monkeypatch):
     """Without any API keys or pyttsx3, should return NullTTS."""
     # Keys are cleared by autouse fixture
     import app.voice.tts as tts_mod
-    tts_mod._create_provider = lambda name: tts_mod.NullTTS()  # Ensure no real init
+    # Use monkeypatch.setattr so the override is automatically restored
+    # after this test — prevents leaking into other tests in the module.
+    monkeypatch.setattr(tts_mod, "_create_provider", lambda name: tts_mod.NullTTS())
     from app.voice.tts import get_tts_provider, NullTTS
     provider = get_tts_provider()
     assert isinstance(provider, NullTTS)

@@ -188,7 +188,9 @@ class ModelProfile:
             return profile
         except Exception as e:
             logger.warning(f"[ModelProfile] Failed to create default profile: {e}")
-            return cls(name="default")
+            profile = cls()
+            profile.name = "default"
+            return profile
 
     def get_stats(self, entry: ModelEntry) -> ModelStats:
         """Get or create stats tracking for a model entry."""

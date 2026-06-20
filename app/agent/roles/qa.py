@@ -102,18 +102,29 @@ Your output MUST include:
         logger.info(f"[{self.role_name}] Delegating QA validation to Manus.")
 
         qa_agent = Manus()
-        qa_result = await qa_agent.run(
-            f"You are a QA engineer. Validate the following implementation:\n\n"
-            f"{impl}\n\n"
-            f"For each stated feature or function:\n"
-            f"  1. Run a test (bash or python_execute)\n"
-            f"  2. Record PASS / FAIL / PARTIAL with evidence\n"
-            f"Save the QA report to workspace/qa_report.md.\n"
-            f"End your report with one of these exact lines:\n"
-            f"  Verdict: APPROVED\n"
-            f"  Verdict: REWORK REQUIRED\n"
-            f"Then call terminate."
-        )
+        try:
+            qa_result = await qa_agent.run(
+                f"You are a QA engineer. Validate the following implementation:\n\n"
+                f"{impl}\n\n"
+                f"For each stated feature or function:\n"
+                f"  1. Run a test (bash or python_execute)\n"
+                f"  2. Record PASS / FAIL / PARTIAL with evidence\n"
+                f"Save the QA report to workspace/qa_report.md.\n"
+                f"End your report with one of these exact lines:\n"
+                f"  Verdict: APPROVED\n"
+                f"  Verdict: REWORK REQUIRED\n"
+                f"Then call terminate."
+            )
+        finally:
+            # Release the Bash subprocess + other tool resources.
+            try:
+                cleanup = getattr(qa_agent, "cleanup", None)
+                if cleanup is not None:
+                    result = cleanup()
+                    if hasattr(result, "__await__"):
+                        await result
+            except Exception as e:
+                logger.warning(f"[{self.role_name}] Agent cleanup error: {e}")
 
         # Parse verdict
         decision, reason = self.decide(qa_result)

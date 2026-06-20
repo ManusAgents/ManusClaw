@@ -151,6 +151,7 @@ class AgentRegistry:
 
         if key in self._cache:
             self._cache.move_to_end(key)
+            self._cache[key] = agent
         else:
             self._cache[key] = agent
         self._last_active[key] = now
@@ -176,8 +177,14 @@ class AgentRegistry:
     def size(self) -> int:
         return len(self._cache)
 
-    async def _evict_idle(self, now: float) -> None:
-        """Remove agents that have been idle beyond TTL."""
+    def _evict_idle(self, now: float) -> None:
+        """Remove agents that have been idle beyond TTL.
+
+        NOTE: This method is synchronous on purpose — it is invoked from
+        the synchronous ``get()`` / ``put()`` paths. Agent ``cleanup()``
+        coroutines are scheduled fire-and-forget via ``_safe_create_task``
+        so eviction is never blocked by cleanup.
+        """
         evict = [
             k for k, t in self._last_active.items()
             if now - t > self._idle_ttl
@@ -185,17 +192,13 @@ class AgentRegistry:
         for k in evict:
             agent = self._cache.pop(k, None)
             self._last_active.pop(k, None)
-            # FIX: Call cleanup on evicted agents to release resources
-            # (Bash subprocesses, DB connections, etc.)
+            # Schedule async cleanup on evicted agents (fire-and-forget)
+            # so we don't block the sync eviction path.
             if agent is not None and hasattr(agent, "cleanup"):
                 try:
-                    import asyncio as _asyncio
                     coro = agent.cleanup()
-                    if _asyncio.iscoroutine(coro):
-                        # Best-effort: schedule cleanup but don't block eviction
+                    if asyncio.iscoroutine(coro):
                         _safe_create_task(coro)
-                    else:
-                        coro  # synchronous cleanup — already executed
                 except Exception as e:
                     logger.warning(f"[AgentRegistry] Cleanup error during eviction for {k}: {e}")
             logger.debug(f"[AgentRegistry] Evicted idle agent: {k}")
@@ -205,12 +208,11 @@ class AgentRegistry:
         while len(self._cache) >= self._cache_size:
             k, agent = self._cache.popitem(last=False)
             self._last_active.pop(k, None)
-            # FIX: Call cleanup on LRU-evicted agents too
+            # Schedule async cleanup on LRU-evicted agents (fire-and-forget)
             if agent is not None and hasattr(agent, "cleanup"):
                 try:
-                    import asyncio as _asyncio
                     coro = agent.cleanup()
-                    if _asyncio.iscoroutine(coro):
+                    if asyncio.iscoroutine(coro):
                         _safe_create_task(coro)
                 except Exception as e:
                     logger.warning(f"[AgentRegistry] Cleanup error during LRU eviction for {k}: {e}")
