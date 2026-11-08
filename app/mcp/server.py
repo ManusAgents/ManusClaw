@@ -15,6 +15,13 @@ from pydantic import BaseModel
 from app.tool.base import ToolCollection
 from app.tool.bash import Bash
 from app.tool.browser_use_tool import BrowserUseTool
+from app.tool.http_agent import (
+    AssertResponseTool,
+    CollectionRunTool,
+    EnvGetTool,
+    EnvSetTool,
+    HttpRequestTool,
+)
 from app.tool.str_replace_editor import StrReplaceEditor
 from app.tool.terminate import Terminate
 
@@ -68,6 +75,12 @@ def build_mcp_server() -> FastAPI:
         BrowserUseTool(),
         StrReplaceEditor(),
         Terminate(),
+        # Postman-Agent HTTP testing tools
+        HttpRequestTool(),
+        AssertResponseTool(),
+        EnvSetTool(),
+        EnvGetTool(),
+        CollectionRunTool(),
     )
 
     class CallRequest(BaseModel):
