@@ -31,7 +31,12 @@ aiohttp>=3.9
 # all      = everything above
 # all-plus = all + voice + ssh + gmail + matrix + companion
 
-# ── Dev / test ────────────────────────────────────────────────────────────────
+# ── Dev / test ────────────────────────────────────────────────────────────
 pytest>=8
 pytest-asyncio>=0.23
 pytest-xdist>=3.5
+# Required by the full test suite: tests/test_webhooks.py and tests/test_canvas.py
+# import app.server / app.canvas modules that use fastapi (same versions as the
+# "server" extra in pyproject.toml).
+fastapi>=0.111
+uvicorn[standard]>=0.30
