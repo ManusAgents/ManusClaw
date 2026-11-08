@@ -9,7 +9,7 @@ Decision logic:
                     and mentions key task-completion signals
 """
 
-from app.agent.roles.base_role import BaseRole, RoleMessage, RoleMessageBus
+from app.agent.roles.base_role import BaseRole, RoleMessage
 from app.logger import logger
 from app.schema import RoleDecision
 

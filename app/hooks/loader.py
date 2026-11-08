@@ -53,7 +53,6 @@ from typing import Any, Optional
 from app.hooks.base import HookBase
 from app.hooks.builtin import AuditHook, LoggingHook, SecurityHook
 from app.hooks.manager import HookManager
-from app.hooks.types import HookEventType
 from app.logger import logger
 
 

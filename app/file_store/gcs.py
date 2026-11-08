@@ -36,7 +36,7 @@ import os
 import random
 import threading
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta, timezone
 from typing import Any, AsyncIterator, Optional, Union
 
 from app.file_store.base import (
@@ -46,7 +46,6 @@ from app.file_store.base import (
     FileStore,
     FileStoreConnectionError,
     FileStoreError,
-    FileStorePermissionError,
 )
 from app.logger import logger
 

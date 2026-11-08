@@ -1,6 +1,5 @@
 """Tests for multi-agent routing (AgentRouter, RouteRule, AgentRegistry)."""
 
-import time
 import pytest
 from app.agent.router import RouteRule, AgentConfig, AgentRegistry
 

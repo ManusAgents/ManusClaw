@@ -1,10 +1,9 @@
 """Tests for LLM credential pool rotation."""
 import pytest
-import asyncio
 import os
 os.environ["APP_ENV"] = "test"
 
-from app.llm.credential_pool import CredentialPool, Credential, build_pool_from_config
+from app.llm.credential_pool import CredentialPool, build_pool_from_config
 
 
 def test_pool_rotation_on_exhaustion():

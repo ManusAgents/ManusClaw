@@ -6,7 +6,7 @@ Optional dependency — falls back gracefully if Docker is unavailable.
 """
 
 import asyncio
-from typing import Any, Optional
+from typing import Optional
 
 from app.config import Config
 from app.exceptions import SandboxError

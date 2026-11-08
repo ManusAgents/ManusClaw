@@ -36,7 +36,7 @@ import logging
 import os
 import time
 from contextvars import ContextVar
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional
 
 # ---------------------------------------------------------------------------
 # Try importing OpenTelemetry — graceful degradation if missing

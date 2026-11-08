@@ -18,7 +18,6 @@ import os
 from typing import Optional
 
 from app.logger import logger
-from app.schema import ToolResult
 
 
 def create_sandbox(backend: Optional[str] = None) -> "BaseSandbox":

@@ -39,7 +39,6 @@ Environment:
 
 from __future__ import annotations
 
-import base64
 import os
 import threading
 from typing import Optional
@@ -130,8 +129,8 @@ class Cipher:
                 self._key_source = "provided"
             except Exception as exc:
                 raise CipherKeyError(
-                    f"Invalid Fernet key (sanitised). "
-                    f"Ensure the key is a valid base64-encoded 32-byte token."
+                    "Invalid Fernet key (sanitised). "
+                    "Ensure the key is a valid base64-encoded 32-byte token."
                 ) from exc
         else:
             # Generate a new key for development

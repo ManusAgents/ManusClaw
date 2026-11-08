@@ -13,12 +13,10 @@ Usage in MessagingGateway:
 """
 
 import asyncio
-import os
 import re
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Optional
 
 from app.logger import logger

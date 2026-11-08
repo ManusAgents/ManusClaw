@@ -44,7 +44,7 @@ import threading
 from typing import Optional
 
 from app.logger import logger
-from app.secrets.models import SecretEntry, SecretSource, SecretStr
+from app.secrets.models import SecretStr
 from app.secrets.store import (
     SecretNotFoundError,
     SecretsStore,

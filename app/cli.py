@@ -41,7 +41,6 @@ Slash commands:
 
 import asyncio
 import signal
-import sys
 from typing import Optional
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -106,13 +105,13 @@ def _print_banner(skin: dict, model_name: str = "") -> None:
         banner_text.append("\n\nType your task naturally. Use /help for commands.", style="dim")
         console.print(Panel(banner_text, border_style=skin["border"], expand=False, padding=(1, 2)))
     except ImportError:
-        print(f"\n  ╔══════════════════════════════════════════╗")
+        print("\n  ╔══════════════════════════════════════════╗")
         print(f"  ║  ManusClaw v{VERSION}                       ║")
-        print(f"  ║  AI Operating Environment Active         ║")
+        print("  ║  AI Operating Environment Active         ║")
         if model_name:
             print(f"  ║  Model: {model_name:<33}║")
-        print(f"  ║  Type tasks naturally. /help for commands ║")
-        print(f"  ╚══════════════════════════════════════════╝\n")
+        print("  ║  Type tasks naturally. /help for commands ║")
+        print("  ╚══════════════════════════════════════════╝\n")
 
 
 def _print_header(skin: dict, model: str, session_id: str, step: int = 0) -> None:

@@ -1,7 +1,6 @@
 """Tests for voice system (TTS providers, wake word detection)."""
 
 import asyncio
-import os
 import pytest
 
 # ── Ensure stub mode ────────────────────────────────────────────────────────

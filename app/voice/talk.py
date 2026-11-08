@@ -235,7 +235,6 @@ class TalkMode:
 
     async def _whisper_listen(self) -> Optional[str]:
         """Listen and transcribe using OpenAI Whisper (local)."""
-        import wave
 
         try:
             import speech_recognition as sr  # type: ignore[import-untyped]

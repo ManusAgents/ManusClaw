@@ -2,13 +2,9 @@
 
 import json
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.canvas.a2ui import (
-    CanvasComponent,
-    CanvasEvent,
     CanvasUpdate,
-    ComponentType,
     MessageType,
     serialize_message,
     parse_message,

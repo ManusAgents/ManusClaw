@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from typing import Any, ClassVar, Literal, Optional, Union
+from typing import Any, ClassVar, Literal, Optional
 
 from pydantic import BaseModel, Field
 

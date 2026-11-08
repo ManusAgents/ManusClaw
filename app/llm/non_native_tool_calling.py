@@ -34,7 +34,7 @@ import re
 from typing import Any, Optional
 
 from app.logger import logger
-from app.schema import Message, Role, ToolCall, Function
+from app.schema import ToolCall, Function
 
 
 # ──────────────────────────────────────────────────────────────────────────────

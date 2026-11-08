@@ -19,7 +19,7 @@ from app.config import Config
 from app.exceptions import RateLimitError, TokenLimitExceeded
 from app.logger import logger
 from app.schema import Message, Role, ToolCall, Function
-from app.llm.token_tracker import TokenBudget, TokenUsage
+from app.llm.token_tracker import TokenBudget
 from app.llm.credential_pool import CredentialPool, build_pool_from_config
 
 MAX_RETRIES     = 8
@@ -207,7 +207,6 @@ class UniversalClient:
             self._session = None
 
     async def _post(self, payload: dict[str, Any], api_key: Optional[str] = None) -> dict[str, Any]:
-        import aiohttp
         key = api_key or self.api_key
         headers: dict[str, str] = {
             "Authorization": f"Bearer {key}",

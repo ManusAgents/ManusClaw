@@ -35,7 +35,7 @@ import time
 from collections import deque
 from typing import Callable, Optional
 
-from app.agent.roles.base_role import RoleMessage, RoleMessageBus
+from app.agent.roles.base_role import RoleMessageBus
 from app.agent.roles.product_manager import ProductManagerRole
 from app.agent.roles.architect import ArchitectRole
 from app.agent.roles.engineer import EngineerRole

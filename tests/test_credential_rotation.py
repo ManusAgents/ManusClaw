@@ -1,7 +1,6 @@
 """Tests for CredentialPool rotation and exhaustion."""
 import pytest
-import asyncio
-from app.llm.credential_pool import CredentialPool, Credential
+from app.llm.credential_pool import CredentialPool
 
 
 @pytest.mark.asyncio

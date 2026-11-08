@@ -5,7 +5,6 @@ from typing import Any, Optional
 
 from app.schema import ToolResult
 from app.tool.base import BaseTool
-from app.logger import logger
 
 
 class BrowserUseTool(BaseTool):

@@ -1,6 +1,5 @@
 """Tests for SessionDB — FTS5, branching, compression, jittered retries."""
 import pytest
-import asyncio
 
 
 @pytest.mark.asyncio

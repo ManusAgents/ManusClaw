@@ -47,7 +47,6 @@ except ImportError:
             self._source = source
 
         def render(self, **kwargs: Any) -> str:
-            import re
             result = self._source
             for key, value in kwargs.items():
                 result = result.replace("{{ " + key + " }}", str(value))

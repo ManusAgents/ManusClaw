@@ -20,7 +20,6 @@ import asyncio
 import hashlib
 import hmac
 import json
-import sqlite3
 import threading
 import time
 import uuid
@@ -28,7 +27,7 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Coroutine, Dict, List, Optional, Union
+from typing import Any, Callable, Coroutine, Dict, List, Optional
 
 from app.logger import logger
 

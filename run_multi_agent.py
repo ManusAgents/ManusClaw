@@ -34,7 +34,7 @@ async def main() -> None:
     mode = AgentMode.PLAN if args.mode == "plan" else AgentMode.BUILD
     orch = MultiAgentOrchestrator(mode=mode)
 
-    print(f"\n[ManusClaw] Running multi-agent pipeline...")
+    print("\n[ManusClaw] Running multi-agent pipeline...")
     print(f"[ManusClaw] Goal: {goal}")
     print(f"[ManusClaw] Mode: {args.mode}\n")
 

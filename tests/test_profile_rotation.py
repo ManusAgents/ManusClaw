@@ -1,6 +1,5 @@
 """Tests for model failover / profile rotation."""
 
-import time
 import pytest
 from app.llm.profile_rotation import ModelEntry, ModelProfile, ModelStats, ProfileRotator
 

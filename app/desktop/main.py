@@ -4,11 +4,8 @@ Provides a terminal-style chat interface running ManusClaw locally.
 Launch: python -m app.desktop.main
 """
 from __future__ import annotations
-import asyncio
 import sys
 import threading
-from pathlib import Path
-from typing import Optional
 
 try:
     import flet as ft

@@ -6,15 +6,11 @@ import pytest
 from app.nodes.protocol import (
     MessageType,
     NodeRegister,
-    NodeRegistered,
     NodeHeartbeat,
-    NodeEvent,
     CanvasPush,
     NodeCommand,
-    NodeInfo,
     CapabilityChecker,
     serialize_message,
-    parse_message,
     parse_node_register,
     parse_node_event,
 )

@@ -1,7 +1,6 @@
 from __future__ import annotations
 """Secret redaction — scrubs API keys and tokens from log output."""
 import re
-from typing import Optional
 
 _PATTERNS = [
     # Generic API keys

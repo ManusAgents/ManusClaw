@@ -40,7 +40,6 @@ import logging
 import os
 import platform
 import sqlite3
-import sys
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone

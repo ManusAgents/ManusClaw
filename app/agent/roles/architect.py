@@ -9,7 +9,7 @@ Decision logic:
   RETRY           → missing sections are named in the correction prompt
 """
 
-from app.agent.roles.base_role import BaseRole, RoleMessage, RoleMessageBus
+from app.agent.roles.base_role import BaseRole, RoleMessage
 from app.logger import logger
 from app.schema import RoleDecision
 

@@ -5,15 +5,12 @@ Supports: GitHub, AWS, Vercel, WordPress, Netlify, HuggingFace,
 """
 from __future__ import annotations
 import json
-import os
-from typing import Any, Optional
-from pydantic import Field
+from typing import Any
 
 try:
     import httpx
     _HTTPX = True
 except ImportError:
-    import urllib.request, urllib.error
     _HTTPX = False
 
 from app.tool.base import BaseTool, ToolResult
@@ -35,7 +32,9 @@ def _req(method: str, url: str, headers: dict, params: dict = None,
         except Exception:
             return {"status": r.status_code, "body": r.text}
     else:
-        import urllib.request, urllib.parse, json as _json
+        import urllib.request
+        import urllib.parse
+        import json as _json
         full_url = url + (("?" + urllib.parse.urlencode(params)) if params else "")
         raw = _json.dumps(json_body).encode() if json_body else None
         req = urllib.request.Request(full_url, data=raw, headers=headers, method=method)

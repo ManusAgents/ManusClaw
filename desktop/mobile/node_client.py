@@ -443,7 +443,7 @@ def main() -> None:
     client.on_canvas_update(_on_canvas)
     client.on_command(_on_command)
 
-    print(f"[Node] Starting ManusClaw node client")
+    print("[Node] Starting ManusClaw node client")
     print(f"[Node] Device ID:   {client.device_id}")
     print(f"[Node] Device Type: {client.device_info.device_type}")
     print(f"[Node] Server:      {client.server_url}")

@@ -20,19 +20,15 @@ import json
 import time
 import uuid
 from dataclasses import asdict
-from typing import Any, Callable, Coroutine, Optional
+from typing import Any, Callable, Coroutine
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.canvas.a2ui import (
-    CanvasComponent,
     CanvasEvent,
     CanvasUpdate,
-    ComponentType,
     MessageType,
-    component_from_dict,
     event_from_dict,
-    serialize_message,
     parse_message,
 )
 from app.logger import logger

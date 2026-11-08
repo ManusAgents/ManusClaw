@@ -1,6 +1,5 @@
 """Tests for SSH server and restricted shell."""
 
-import os
 import pytest
 
 # ── Ensure stub mode ────────────────────────────────────────────────────────

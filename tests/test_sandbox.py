@@ -1,6 +1,5 @@
 """Tests for sandbox backends (factory, SshSandbox, OpenShellSandbox)."""
 
-import os
 import pytest
 from unittest.mock import patch, MagicMock
 

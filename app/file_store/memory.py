@@ -26,9 +26,8 @@ Usage::
 from __future__ import annotations
 
 import threading
-import time
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Optional, Union
+from typing import Optional, Union
 
 from app.file_store.base import (
     FileAlreadyExistsError,

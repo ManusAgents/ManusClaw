@@ -37,7 +37,6 @@ import os
 import tempfile
 import threading
 import time
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator, Optional
@@ -47,11 +46,8 @@ from app.events.serialization import (
     DeserializationError,
     SerializationError,
     deserialize,
-    deserialize_batch,
     serialize,
-    serialize_to_dict,
 )
-from app.events.types import KIND_TO_EVENT
 
 logger = logging.getLogger("manusclaw.events.event_log")
 

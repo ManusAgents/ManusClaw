@@ -390,7 +390,6 @@ class FileSecretsStore(SecretsStore):
                 name=entry.name,
             )
         try:
-            import aiohttp
             # Synchronous fallback — use urllib if aiohttp is not available
             import urllib.request
             with urllib.request.urlopen(url, timeout=10) as resp:

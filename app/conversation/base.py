@@ -28,10 +28,9 @@ Subclasses must implement:
 
 from __future__ import annotations
 
-import copy
 import uuid
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional
 
 from app.conversation.cancellation_token import CancellationToken, CancelledError
 from app.conversation.state import ConversationState, ExecutionStatus

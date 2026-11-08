@@ -7,7 +7,7 @@ the interface contract and logs actions when credentials are present.
 """
 import os
 import aiohttp
-from app.messaging.base import BaseMessagingAdapter, IncomingMessage
+from app.messaging.base import BaseMessagingAdapter
 from app.logger import logger
 
 

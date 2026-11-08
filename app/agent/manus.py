@@ -5,7 +5,6 @@ from typing import Optional
 
 from app.agent.toolcall import ToolCallAgent
 from app.config import Config
-from app.logger import logger
 from app.permissions.gate import AgentMode
 from app.schema import AgentState, Message
 from app.tool.ask_human import AskHuman

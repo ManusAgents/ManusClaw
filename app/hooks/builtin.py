@@ -13,7 +13,6 @@ Built-in hooks:
 """
 
 import json
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -21,7 +20,6 @@ from typing import Any, Optional
 from app.hooks.base import HookBase
 from app.hooks.types import (
     HookContext,
-    HookDecision,
     HookEventType,
     HookResult,
 )

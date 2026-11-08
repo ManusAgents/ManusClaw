@@ -27,7 +27,6 @@ Thread Safety:
 """
 
 import time
-import uuid
 from typing import Any, Optional
 
 from app.logger import logger
@@ -38,7 +37,6 @@ from app.context.condenser.base import (
     CondensationAction,
     Condensation,
     CondensationReason,
-    CondenserMetrics,
 )
 
 # ──────────────────────────────────────────────────────────────────────────────

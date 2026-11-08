@@ -5,8 +5,6 @@ This adapter manages lightweight WebSocket connections originating from the
 ManusClaw web interface.  It does not connect to any external service.
 """
 import asyncio
-import json
-from typing import Optional
 from app.messaging.base import BaseMessagingAdapter, IncomingMessage
 from app.logger import logger
 

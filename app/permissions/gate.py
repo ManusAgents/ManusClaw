@@ -200,7 +200,7 @@ class PermissionGate:
         import asyncio
         from app.logger import logger
         preview = description or f"{tool_name}({str(args)[:120]})"
-        print(f"\n⏸  [PLAN MODE] Pending action requires approval:")
+        print("\n⏸  [PLAN MODE] Pending action requires approval:")
         print(f"   Tool: {tool_name}")
         print(f"   Preview: {preview}")
         # Fix: use run_in_executor to avoid blocking the event loop

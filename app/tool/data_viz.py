@@ -4,10 +4,9 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from app.config import Config
-from app.logger import logger
 from app.schema import ToolResult
 from app.tool.base import BaseTool
 

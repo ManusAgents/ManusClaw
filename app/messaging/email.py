@@ -6,7 +6,7 @@ The full implementation needs proper TLS handling and MIME formatting.
 """
 import os
 import asyncio
-from app.messaging.base import BaseMessagingAdapter, IncomingMessage
+from app.messaging.base import BaseMessagingAdapter
 from app.logger import logger
 
 
@@ -52,7 +52,6 @@ class EmailAdapter(BaseMessagingAdapter):
             logger.info(f"[Email:stub] Would send to {channel_id}: {text[:80]}")
             return
         try:
-            import smtplib
             from email.mime.text import MIMEText
 
             msg = MIMEText(text[:10000])

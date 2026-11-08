@@ -20,35 +20,23 @@ Key features:
 from __future__ import annotations
 
 import asyncio
-import copy
-import json
 import os
 import tempfile
 import time
-import uuid
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional
 
 from app.conversation.base import BaseConversation
-from app.conversation.cancellation_token import CancellationToken, CancelledError
-from app.conversation.state import ConversationState, ExecutionStatus
-from app.conversation.stuck_detector import StuckDetector, StuckReport
+from app.conversation.cancellation_token import CancelledError
+from app.conversation.stuck_detector import StuckDetector
 from app.events.base import Event
 from app.events.event_log import EventLog
 from app.events.types import (
     ActionEvent,
     AgentErrorEvent,
     ConversationStateUpdateEvent,
-    FunctionCall,
-    HookExecutionEvent,
     MessageEvent,
-    ObservationEvent,
-    PauseEvent,
     ResumeTranscriptEvent,
     InterruptEvent,
-    SystemPromptEvent,
-    ToolCallInfo,
-    TokenEvent,
     UserRejectObservation,
 )
 from app.logger import logger

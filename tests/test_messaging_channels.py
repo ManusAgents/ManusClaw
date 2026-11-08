@@ -1,7 +1,6 @@
 """Tests for new messaging channel adapters (WhatsApp, IRC, WebChat, Matrix)."""
 
 import asyncio
-import os
 import pytest
 
 # ── Ensure stub mode (no tokens set) ────────────────────────────────────────

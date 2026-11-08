@@ -229,7 +229,7 @@ class SessionToolsCLI:
         agent_name = args.agent
         mode = args.mode
 
-        print(f"Spawning new session...")
+        print("Spawning new session...")
         print(f"  Agent: {agent_name}")
         print(f"  Mode:  {mode}")
         print(f"  Prompt: {prompt[:80]}...\n")
@@ -240,7 +240,7 @@ class SessionToolsCLI:
             result = await agent.run(prompt)
             session_id = agent._session_id or "unknown"
             print(f"Session {session_id} completed.")
-            print(f"\n--- Result ---")
+            print("\n--- Result ---")
             print(result or "(no output)")
         except Exception as e:
             print(f"Spawn failed: {e}")

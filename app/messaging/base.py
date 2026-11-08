@@ -1,10 +1,8 @@
 from __future__ import annotations
 """Base adapter contract for all messaging platform adapters."""
-import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
-from app.logger import logger
 
 
 @dataclass

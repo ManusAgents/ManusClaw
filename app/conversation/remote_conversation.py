@@ -22,16 +22,14 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-import uuid
 from collections import deque
-from typing import Any, Callable, Deque, Dict, List, Optional, Sequence
+from typing import Any, Callable, Deque, Dict, List, Optional
 
 from app.conversation.base import BaseConversation
-from app.conversation.cancellation_token import CancellationToken, CancelledError
-from app.conversation.state import ConversationState, ExecutionStatus
-from app.conversation.stuck_detector import StuckDetector, StuckReport
+from app.conversation.state import ExecutionStatus
+from app.conversation.stuck_detector import StuckDetector
 from app.events.base import Event
-from app.events.serialization import deserialize, serialize
+from app.events.serialization import deserialize
 from app.events.types import (
     ConversationStateUpdateEvent,
     InterruptEvent,

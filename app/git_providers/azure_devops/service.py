@@ -32,7 +32,6 @@ from ..models import (
     IssueStatus,
     PRStatus,
     PullRequest,
-    RateLimitInfo,
     Repository,
     SuggestedTask,
     TaskType,

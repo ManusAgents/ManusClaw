@@ -5,7 +5,6 @@ Uses the WhatsApp Business Cloud API (graph.facebook.com) for sending messages
 and webhook endpoints for receiving inbound messages.
 """
 import os
-import asyncio
 import aiohttp
 from app.messaging.base import BaseMessagingAdapter, IncomingMessage
 from app.logger import logger

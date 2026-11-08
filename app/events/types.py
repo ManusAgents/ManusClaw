@@ -31,9 +31,7 @@ Event taxonomy:
 
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timezone
-from typing import Any, ClassVar, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -42,7 +40,6 @@ from app.events.base import (
     LLMConvertibleEvent,
     SourceType,
     _new_id,
-    _utc_now,
 )
 
 

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
+from typing import Optional
 
 from app.agent.base import BaseAgent
 from app.llm.llm import LLM
 from app.logger import logger
-from app.schema import AgentState, Message, Observation, Reflection, TaskStep
+from app.schema import AgentState, Message, Observation, Reflection
 
 
 # ---------------------------------------------------------------------------

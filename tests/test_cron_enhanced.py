@@ -1,6 +1,5 @@
 """Tests for enhanced cron (output targets, webhook delivery, multi-target routing)."""
 
-import os
 import pytest
 from app.cron import CronJob, CronScheduler, _parse_output_target
 

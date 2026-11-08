@@ -143,7 +143,8 @@ class OllamaRouter:
         
         tool_calls = []
         if "tool_calls" in msg and msg["tool_calls"]:
-            import time, json
+            import time
+            import json
             for i, tc in enumerate(msg["tool_calls"]):
                 fn = tc.get("function", {})
                 args = fn.get("arguments", {})
@@ -209,7 +210,8 @@ class OpenAICompatRouter:
             )
             return r.json()
         except ImportError:
-            import urllib.request, json as _j
+            import urllib.request
+            import json as _j
             data = _j.dumps(payload).encode()
             req = urllib.request.Request(
                 f"{self.base}/chat/completions",
@@ -263,7 +265,8 @@ class HuggingFaceRouter:
             )
             return r.json()
         except ImportError:
-            import urllib.request, json as _j
+            import urllib.request
+            import json as _j
             data = _j.dumps(payload).encode()
             req = urllib.request.Request(
                 self.url, data=data, headers=self.headers, method="POST"

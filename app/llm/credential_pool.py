@@ -10,7 +10,7 @@ Keys auto-recover after a cooldown window.
 
 import asyncio
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
 from app.logger import logger

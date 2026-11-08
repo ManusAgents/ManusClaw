@@ -18,12 +18,12 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
-from typing import Any, Optional, Union
+from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, TypeAdapter
+from pydantic import TypeAdapter
 
-from app.events.base import Event, LLMConvertibleEvent
+from app.events.base import Event
 from app.events.types import (
     KIND_TO_EVENT,
     EventUnion,

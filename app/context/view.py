@@ -26,10 +26,6 @@ from app.logger import logger
 from app.context.view_properties import (
     Event,
     ViewProperty,
-    BatchAtomicity,
-    ObservationUniqueness,
-    ToolCallMatching,
-    ToolLoopAtomicity,
     DEFAULT_PROPERTIES,
 )
 

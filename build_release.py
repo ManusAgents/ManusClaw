@@ -121,12 +121,12 @@ def build() -> None:
     shutil.make_archive(str(archive), "zip", RELEASE, dst.name)
 
     print(f"\n{'='*60}")
-    print(f"  ✓ Build complete!")
+    print("  ✓ Build complete!")
     print(f"  Executable : {dst}")
     print(f"  Archive    : {archive}.zip")
     print(f"{'='*60}\n")
     print("  Upload these files to your GitHub Release manually:")
-    print(f"    https://github.com/ManusAgents/ManusClaw/releases/new")
+    print("    https://github.com/ManusAgents/ManusClaw/releases/new")
     print(f"\n  Tag: {TAG_NAME}\n")
 
 

@@ -27,10 +27,9 @@ Usage::
 from __future__ import annotations
 
 import os
-from typing import Any, Optional
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, HTTPException
 
 from app.logger import logger
 from app.secrets.models import (

@@ -19,7 +19,7 @@ provider services.
 
 import re
 import threading
-from typing import Any, Dict, List, Optional, Type
+from typing import Dict, List, Optional, Type
 
 from app.exceptions import NonRetryableError
 from app.logger import logger

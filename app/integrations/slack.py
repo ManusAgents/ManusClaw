@@ -29,7 +29,6 @@ import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Coroutine, Dict, List, Optional
-from urllib.parse import urlencode
 
 from app.logger import logger
 
@@ -1103,8 +1102,6 @@ class SlackIntegration:
         """
         from app.integrations.resolver import (
             IssueResolver,
-            ResolutionRequest,
-            ResolutionType,
         )
 
         text = payload.text.strip()

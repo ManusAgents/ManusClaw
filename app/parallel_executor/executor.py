@@ -31,12 +31,11 @@ import threading
 import time
 import uuid
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import (
     Any,
     Awaitable,
     Callable,
-    Coroutine,
     Dict,
     List,
     Optional,
@@ -44,17 +43,13 @@ from typing import (
     Sequence,
     Tuple,
     TypeVar,
-    Union,
     runtime_checkable,
 )
 
 from app.parallel_executor.declared_resources import (
-    AccessMode,
     DeclaredResources,
-    ResourceDeclaration,
 )
 from app.parallel_executor.resource_lock import (
-    DeadlockDetectedError,
     ResourceLockHandle,
     ResourceLockManager,
 )

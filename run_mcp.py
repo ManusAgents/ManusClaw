@@ -11,7 +11,6 @@ import argparse
 import asyncio
 
 from app.agent.mcp import MCPAgent
-from app.logger import logger
 
 
 async def run(args: argparse.Namespace) -> None:

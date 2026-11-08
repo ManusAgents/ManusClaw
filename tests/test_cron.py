@@ -1,5 +1,4 @@
 """Tests for cron scheduler."""
-import pytest
 import os
 os.environ["APP_ENV"] = "test"
 
@@ -27,8 +26,7 @@ def test_cron_remove_job():
 
 def test_cron_trigger_sets_due():
     """trigger_job should make a job immediately due."""
-    from app.cron import CronScheduler, CronJob
-    import time
+    from app.cron import CronScheduler
     sched = CronScheduler()
     sched.add_job("j3", "Trigger Test", "0 0 1 1 *", "Test")  # once a year
     # Trigger it immediately
@@ -39,7 +37,7 @@ def test_cron_trigger_sets_due():
 
 def test_cron_graceful_without_croniter():
     """CronJob.update_next_run should not crash without croniter."""
-    from app.cron import CronJob, _HAS_CRONITER
+    from app.cron import CronJob
     job = CronJob(job_id="t", name="t", cron_expr="invalid", prompt="test")
     job.update_next_run()  # should not raise
     assert job.next_run > 0

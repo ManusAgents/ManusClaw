@@ -13,17 +13,10 @@ The tool sends updates through the global :class:`CanvasServer` instance.
 
 from __future__ import annotations
 
-import json
 from typing import Any, Optional
 
 from app.canvas.a2ui import (
-    CanvasComponent,
-    ChartData,
     chart_component,
-    image_component,
-    markdown_component,
-    table_component,
-    text_component,
 )
 from app.canvas.server import CanvasServer
 from app.logger import logger

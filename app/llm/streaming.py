@@ -31,7 +31,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, AsyncIterator, Callable, Iterator, Optional, Union
+from typing import Any, AsyncIterator, Callable, Iterator, Optional
 
 from app.logger import logger
 

@@ -65,7 +65,7 @@ class TwitchAdapter(BaseMessagingAdapter):
         # Join channel after a short delay for registration
         await asyncio.sleep(2)
         self._write(f"JOIN #{self._channel}")
-        self._write(f"CAP REQ :twitch.tv/tags twitch.tv/commands")
+        self._write("CAP REQ :twitch.tv/tags twitch.tv/commands")
 
         # PING keep-alive task
         async def _ping_loop():

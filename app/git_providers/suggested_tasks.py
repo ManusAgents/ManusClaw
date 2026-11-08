@@ -11,16 +11,13 @@ or via :class:`GitProviderRouter` which handles provider detection.
 """
 
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from app.logger import logger
 
 from .base import GitProviderService
 from .models import (
-    Issue,
-    IssueStatus,
     PullRequest,
-    Repository,
     SuggestedTask,
     TaskType,
 )
@@ -134,7 +131,6 @@ class SuggestedTaskGenerator:
             )
             return
 
-        import time as _time
         from datetime import datetime, timezone
 
         now = datetime.now(timezone.utc)

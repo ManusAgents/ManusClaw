@@ -40,8 +40,7 @@ import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from types import TracebackType
-from typing import Generator, List, Optional, Sequence, Type
+from typing import Generator, List, Optional, Sequence
 
 from app.parallel_executor.declared_resources import (
     AccessMode,

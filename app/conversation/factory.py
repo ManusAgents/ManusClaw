@@ -39,7 +39,7 @@ Usage::
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from app.conversation.base import BaseConversation
 from app.conversation.local_conversation import LocalConversation

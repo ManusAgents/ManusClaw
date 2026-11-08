@@ -15,9 +15,9 @@ Lifecycle contract:
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
-from app.hooks.types import HookContext, HookDecision, HookEventType, HookResult
+from app.hooks.types import HookContext, HookEventType, HookResult
 
 
 class HookBase(ABC):

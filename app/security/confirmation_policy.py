@@ -32,8 +32,8 @@ presentation.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from dataclasses import dataclass
+from typing import Any, Dict
 
 from app.security.base import RiskAssessment, SecurityRisk
 
@@ -206,8 +206,8 @@ class ConfirmRisky(ConfirmationPolicy):
             return ConfirmationDecision(
                 needs_confirmation=False,  # Not confirmable — outright blocked
                 reason=(
-                    f"ConfirmRisky policy: HIGH risk blocked outright "
-                    f"(block_high=True). Action denied."
+                    "ConfirmRisky policy: HIGH risk blocked outright "
+                    "(block_high=True). Action denied."
                 ),
                 assessment=assessment,
                 policy_name=self.POLICY_NAME,

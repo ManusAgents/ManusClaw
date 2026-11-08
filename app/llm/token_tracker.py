@@ -7,8 +7,7 @@ Tracks input, output, cache, and reasoning tokens separately.
 A grace call is allowed after budget exhaustion for cleanup.
 """
 
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 from app.logger import logger
 

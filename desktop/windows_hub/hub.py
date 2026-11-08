@@ -13,7 +13,6 @@ import json
 import os
 import sys
 import threading
-import time
 import uuid
 import webbrowser
 from pathlib import Path
@@ -42,7 +41,7 @@ except ImportError:
 _SERVER_URL: str = os.getenv("MANUSCLAW_SERVER_URL", "ws://localhost:8765")
 _API_KEY: str = os.getenv("MANUSCLAW_API_KEY", "")
 _DEVICE_ID: str = os.getenv("MANUSCLAW_DEVICE_ID", "") or f"win-{uuid.uuid4().hex[:8]}"
-_CHAT_URL: str = f"http://localhost:8765/chat"
+_CHAT_URL: str = "http://localhost:8765/chat"
 _CONFIG_DIR: Path = Path.home() / ".manusclaw"
 
 _RECONNECT_BASE_DELAY: float = 1.0

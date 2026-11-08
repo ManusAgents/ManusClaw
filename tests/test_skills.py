@@ -1,5 +1,4 @@
 """Tests for the SkillEngine and SkillManagerTool."""
-import pytest
 import os
 
 

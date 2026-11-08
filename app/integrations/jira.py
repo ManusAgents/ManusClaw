@@ -24,14 +24,11 @@ import hmac
 import json
 import os
 import threading
-import time
-import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode, quote
 
-from app.logger import logger
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Optional HTTP client

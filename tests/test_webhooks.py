@@ -2,8 +2,6 @@
 
 import hashlib
 import hmac
-import os
-import tempfile
 import pytest
 
 from app.server.webhooks import WebhookConfig, WebhookManager

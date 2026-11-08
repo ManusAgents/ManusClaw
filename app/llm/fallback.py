@@ -30,14 +30,10 @@ from enum import Enum
 from typing import Any, Callable, Optional
 
 from app.exceptions import (
-    ManusClawError,
-    RateLimitError,
-    RetryableError,
     NonRetryableError,
-    TokenLimitExceeded,
 )
 from app.logger import logger
-from app.llm.retry import ErrorCategory, classify_error, is_retryable
+from app.llm.retry import ErrorCategory, classify_error
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -363,7 +359,6 @@ class FallbackStrategy:
         Raises:
             The last exception if all models in the chain fail.
         """
-        import asyncio
 
         chain = self._config.chain
         if not chain:
