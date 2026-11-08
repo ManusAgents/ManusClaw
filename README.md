@@ -26,7 +26,7 @@
   &nbsp;•&nbsp;
   <img src="https://img.shields.io/badge/Tools-17%2B-00C853?style=flat-square" alt="Tools">
   &nbsp;•&nbsp;
-  <img src="https://img.shields.io/badge/Tests-212%20passed-brightgreen?style=flat-square" alt="Tests">
+<img src="https://img.shields.io/badge/Tests-341%20passed-brightgreen?style=flat-square" alt="Tests">
 </p>
 
 </div>
@@ -66,6 +66,7 @@
   - [Session & Memory](#-session--memory-system)
 - [Quick Start](#-quick-start)
 - [Configuration](#-configuration)
+- [Multi-User Authentication](#-multi-user-authentication)
 - [Docker Deployment](#-docker-deployment)
 - [Entry Points](#-entry-points)
 - [Contributing](#-contributing)
@@ -384,6 +385,7 @@ Multi-layer security analysis combining pattern matching, policy rails, LLM-base
 | **Credential Pool** | Per-provider multi-key rotation with priority ordering, cooldown, and health tracking. Supports `OPENAI_API_KEY_2`, `_3`, etc. |
 | **Cross-Provider Rotator** | `CrossProviderRotator` — unified credential interface across all providers |
 | **Profile Rotation** | `ProfileRotator` — ordered model entries with priority, fallback weights, per-session profile selection, bounded cache |
+| **Circuit Breaker** | Per-entry closed → open → half-open (single probe) breaker in front of `ProfileRotator` cooldowns so dead credentials are skipped fail-fast (`MANUSCLAW_CB_FAILURE_THRESHOLD`, `MANUSCLAW_CB_RESET_S`) |
 | **Fallback Strategy** | Configurable model chains with per-model cooldown, 8 fallback triggers (rate_limit, context_window, timeout, etc.) |
 | **Streaming** | Token-level streaming with `StreamingDeltaEvent`, SSE for web clients, backpressure handling, multi-provider chunk parsing |
 | **Enhanced Retry** | 5 backoff strategies (fixed, linear, exponential, exponential_jitter, decorrelated_jitter), retry budgets, provider-specific error mapping |
@@ -785,6 +787,53 @@ See `config.toml` for the full configuration reference with all options and defa
 
 ---
 
+## 🔑 Multi-User Authentication
+
+The server ships with per-user API keys, replacing the legacy single shared `MANUSCLAW_API_KEY` (which still works and acts as the built-in `legacy-admin`).
+
+### Quick Start
+
+```bash
+# Option 1: bootstrap an admin user + key at server startup (idempotent)
+export MANUSCLAW_ADMIN_KEY=<your-secret-admin-key>
+
+# Option 2: manage users and keys from the CLI (no server required)
+python -m app.server.auth add-user alice --role admin   # prints the API key once
+python -m app.server.auth add-key alice --name ci
+python -m app.server.auth list-users
+python -m app.server.auth list-keys alice
+python -m app.server.auth revoke-key <key_id>
+python -m app.server.auth set-role alice admin
+```
+
+Keys look like `mck_...`, are stored only as salted PBKDF2-HMAC-SHA256 hashes (`MANUSCLAW_PBKDF2_ITERATIONS`, default 600000), and are shown exactly once at creation. Send them as `X-API-Key: mck_...` (HTTP) or `?api_key=mck_...` (WebSocket).
+
+### Behaviour
+
+| Aspect | Detail |
+|---|---|
+| Endpoints | `GET /auth/me`, `POST/GET /auth/keys`, `DELETE /auth/keys/{key_id}`, admin-only `GET/POST /auth/users` |
+| Auth modes | Per-user DB keys → legacy static `MANUSCLAW_API_KEY` → anonymous mode when neither is configured (server open, previous default) |
+| Session ownership | First `/run`, `/run/sync` or WS connect claims the session; `/sessions` and session reads are owner-scoped; admins see all and may enter without re-owning |
+| Revocation | `DELETE /auth/keys/{key_id}` (own key, or any key as admin) takes effect immediately |
+| Open endpoints | `/healthz`, `/`, `/tools`, `/webhooks/*` stay unauthenticated by design |
+| Verification cache | Resolved keys are cached ~5 min; revocation invalidates immediately |
+
+### Webhook Delivery Idempotency
+
+`POST /webhooks/{hook_id}` is idempotent per delivery. The delivery id comes from `X-Delivery-ID`, `X-GitHub-Delivery`, or `X-GitLab-Event-UUID`, falling back to a SHA-256 of the body. Replayed deliveries return `200 {"status": "duplicate_ignored"}` instead of re-running the agent. Each hook also keeps one persistent agent session (memory across deliveries, `target_session` wins when set) and serialises concurrent deliveries per hook.
+
+### LLM Circuit Breaker
+
+`ProfileRotator` wraps each credential entry in a circuit breaker (closed → open → half-open single probe):
+
+```bash
+MANUSCLAW_CB_FAILURE_THRESHOLD=3   # consecutive failures before OPEN (0 disables)
+MANUSCLAW_CB_RESET_S=60            # seconds before an OPEN breaker probes again
+```
+
+---
+
 ## 🐳 Docker Deployment
 
 ### Build
@@ -832,6 +881,7 @@ MISTRAL_API_KEY=...
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 MANUSCLAW_ALLOWED_ORIGINS=https://yourdomain.com
+MANUSCLAW_ADMIN_KEY=...            # bootstraps an admin user + API key at startup
 ```
 
 ### Health Checks

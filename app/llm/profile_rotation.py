@@ -36,6 +36,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from app.llm.circuit_breaker import BreakerState, CircuitBreaker
 from app.logger import logger
 
 
@@ -235,6 +236,10 @@ class ProfileRotator:
         # FIX: Bound the session profile cache to prevent unbounded memory growth.
         # Oldest sessions are evicted when the limit is reached.
         self._max_session_profiles: int = int(os.getenv("MANUSCLAW_MAX_SESSION_PROFILES", "128"))
+        # Circuit breaker: after N consecutive failures an entry is OPENED
+        # and skipped entirely (fail-fast) until the reset window, then given
+        # exactly one half-open probe — instead of being retried every call.
+        self._breaker = CircuitBreaker.from_env()
 
     @property
     def profile(self) -> ModelProfile:
@@ -258,11 +263,15 @@ class ProfileRotator:
             if provider_filter:
                 entries = [e for e in entries if e.provider == provider_filter]
 
-            # Try entries in priority order
+            # Try entries in priority order, skipping cooled-down and
+            # circuit-breaker-open entries.
             for entry in entries:
                 stats = self._profile.get_stats(entry)
-                if not stats.is_in_cooldown:
-                    return entry
+                if stats.is_in_cooldown:
+                    continue
+                if not self._breaker.allow(entry.key):
+                    continue
+                return entry
 
             # All in cooldown — find the one with least remaining cooldown
             best = None
@@ -298,6 +307,7 @@ class ProfileRotator:
             stats.total_calls += 1
             stats.success_count += 1
             stats.total_latency_s += latency_s
+            self._breaker.record_success(entry.key)
             logger.debug(
                 f"[ProfileRotator] Success: {entry.key} "
                 f"(rate={stats.success_rate:.1%}, latency={latency_s:.1f}s)"
@@ -315,6 +325,7 @@ class ProfileRotator:
             stats.total_calls += 1
             stats.fail_count += 1
             stats.last_failure = time.monotonic()
+            self._breaker.record_failure(entry.key)
             logger.warning(
                 f"[ProfileRotator] Failed: {entry.key} "
                 f"(cooldown={entry.cooldown_s:.0f}s, error={error or 'unknown'})"
@@ -367,8 +378,12 @@ class ProfileRotator:
 
         for entry in self._profile.entries:
             stats = self._profile.get_stats(entry)
-            cooldown_str = ""
-            if stats.is_in_cooldown:
+            breaker_state = self._breaker.state_of(entry.key)
+            if breaker_state is BreakerState.OPEN:
+                cooldown_str = f"OPEN {self._breaker.open_remaining_s(entry.key):.0f}s"
+            elif breaker_state is BreakerState.HALF_OPEN:
+                cooldown_str = "half-open"
+            elif stats.is_in_cooldown:
                 cooldown_str = f"{stats.remaining_cooldown_s:.0f}s"
             else:
                 cooldown_str = "ready"

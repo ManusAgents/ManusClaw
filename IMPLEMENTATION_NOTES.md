@@ -135,7 +135,15 @@ Three systems use the same LRU cache pattern:
 - `DeviceManager` — cache_size=128, heartbeat_timeout=120s
 
 ### Model Failover Design
-`ProfileRotator` separates the profile definition from runtime state. The `ModelProfile` defines ordered entries; `ProfileRotator` manages cooldown timers, success tracking, and per-session overrides.
+`ProfileRotator` separates the profile definition from runtime state. The `ModelProfile` defines ordered entries; `ProfileRotator` manages cooldown timers, success tracking, and per-session overrides. A per-entry circuit breaker (closed → open → half-open single probe) sits in front of cooldown selection so dead credentials are skipped fail-fast; tune via `MANUSCLAW_CB_FAILURE_THRESHOLD` (0 disables) and `MANUSCLAW_CB_RESET_S`.
+
+### Multi-User API-Key Auth
+`app/server/auth.py` + `app/db/users.py` replace the single static `MANUSCLAW_API_KEY` with per-user keys (`mck_` prefix, PBKDF2-HMAC-SHA256, salted, constant-time compare, prefix-indexed lookup so invalid keys never pay the hashing cost). Verification results are cached by key digest for ~5 minutes; revocation invalidates the cache entry immediately. The legacy static key keeps working as the built-in `legacy-admin` principal; with no keys configured the server runs in anonymous mode (previous default). `MANUSCLAW_ADMIN_KEY` bootstraps an idempotent admin user + key at startup, and `python -m app.server.auth` manages users/keys without a server.
+
+Session ownership is first-claim-wins: the first `/run`, `/run/sync` or WS connect tags the session with the caller's user id; non-admin listings and reads are owner-scoped, while admins may enter any session without re-owning it.
+
+### Webhook Idempotency & Session Affinity
+`app/server/webhook_reliability.py` adds `webhook_deliveries` (7-day retention, prune throttled to once per hour) and `webhook_sessions` tables to the same SQLite DB. `trigger()` claims a delivery id — `X-Delivery-ID` / `X-GitHub-Delivery` / `X-GitLab-Event-UUID`, else a SHA-256 of the body — before running; duplicates return `status: "duplicate_ignored"` and the router maps them to HTTP 200. Each hook keeps one persistent agent session (`target_session` wins, else `webhook-<hook_id>`) and a per-hook `asyncio.Lock`, so deliveries to the same hook run serially with memory across deliveries.
 
 ## Patterns Followed
 
@@ -163,16 +171,13 @@ Three systems use the same LRU cache pattern:
 
 6. **Companion apps**: The desktop companion apps are scaffolded but not fully functional. They provide starting points for platform-specific integration.
 
-7. **Webhook agent trigger**: The webhook system creates a new `Manus()` agent per trigger. There is no session affinity or deduplication.
-
-8. **Model failover**: The `ProfileRotator` does not implement circuit breaker patterns with half-open states. It uses simple cooldown timers.
+7. **Auth rate limiting**: The API-key auth paths (`X-API-Key` header, `/auth/*`, WS token checks) are not rate-limited. DB key lookups short-circuit on an indexed key prefix before any PBKDF2 work, so rejecting invalid keys is cheap, but online guessing of the legacy static key still needs a proxy-level rate limiter.
 
 ## Future Work
 
 - **WebSocket multiplexing**: Support horizontal scaling of CanvasServer with Redis-backed session state.
 - **MQTT bridge**: Add an MQTT adapter for IoT device communication.
 - **OAuth2 flow wizard**: Interactive OAuth2 setup for Gmail and other OAuth-protected services.
-- **Webhook deduplication**: Idempotency keys for webhook triggers to prevent duplicate agent runs.
 - **Voice wake word training**: Support custom wake word models beyond the default porcupine keywords.
 - **Container orchestration**: Add Kubernetes-based sandbox backend for cloud deployments.
 - **Real-time collaboration**: Multi-user canvas editing with conflict resolution.

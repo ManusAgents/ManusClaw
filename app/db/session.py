@@ -19,7 +19,7 @@ import sqlite3
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 from app.logger import logger
 
@@ -388,15 +388,31 @@ class SessionDB:
     # Queries
     # ------------------------------------------------------------------
 
-    async def get_sessions(self, limit: int = 20) -> list[dict[str, Any]]:
+    async def get_sessions(self, limit: int = 20,
+                           owner_ids: Optional[Sequence[str]] = None) -> list[dict[str, Any]]:
+        """List sessions. When ``owner_ids`` is given (multi-user mode), only
+        sessions whose id is in that list are returned; an empty list yields
+        no rows."""
         def _get():
             def _do_query(conn):
-                rows = conn.execute(
-                    "SELECT id, goal, agent_name, mode, parent_session_id,"
-                    " started_at, ended_at, state, step_count"
-                    " FROM sessions ORDER BY started_at DESC LIMIT ?",
-                    (limit,),
-                ).fetchall()
+                if owner_ids is not None:
+                    if not owner_ids:
+                        return []
+                    placeholders = ",".join("?" for _ in owner_ids)
+                    rows = conn.execute(
+                        "SELECT id, goal, agent_name, mode, parent_session_id,"
+                        " started_at, ended_at, state, step_count"
+                        f" FROM sessions WHERE id IN ({placeholders})"
+                        " ORDER BY started_at DESC LIMIT ?",
+                        (*owner_ids, limit),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        "SELECT id, goal, agent_name, mode, parent_session_id,"
+                        " started_at, ended_at, state, step_count"
+                        " FROM sessions ORDER BY started_at DESC LIMIT ?",
+                        (limit,),
+                    ).fetchall()
                 cols = [
                     "id", "goal", "agent_name", "mode", "parent_session_id",
                     "started_at", "ended_at", "state", "step_count",

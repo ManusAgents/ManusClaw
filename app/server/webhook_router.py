@@ -23,10 +23,10 @@ import hmac
 import json
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Request
 
 from app.logger import logger
-from app.server.webhooks import WebhookConfig, WebhookManager, webhook_manager
+from app.server.webhooks import WebhookConfig, webhook_manager
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
@@ -181,8 +181,21 @@ async def trigger_webhook(
         if not webhook_manager.verify_hmac(hook_id, body_bytes, clean_sig):
             raise HTTPException(status_code=401, detail="Invalid HMAC signature")
 
+    # Delivery ID for idempotency: provider headers first, then a hash of
+    # the body so retries of identical payloads are still deduplicated.
+    delivery_id = (
+        request.headers.get("x-delivery-id")
+        or request.headers.get("x-github-delivery")
+        or request.headers.get("x-gitlab-event-uuid")
+        or hashlib.sha256(body_bytes).hexdigest()
+    )
+
     # Trigger the webhook
-    result = await webhook_manager.trigger(hook_id, payload)
+    result = await webhook_manager.trigger(hook_id, payload, delivery_id=delivery_id)
+
+    # Idempotent receiver semantics: duplicates are a 200, not an error.
+    if result.get("status") == "duplicate_ignored":
+        return result
 
     if result.get("status") == "error":
         status_code = 404 if "Unknown" in result.get("error", "") else 500

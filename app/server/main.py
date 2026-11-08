@@ -20,12 +20,12 @@ import json
 import os
 import time
 from collections import OrderedDict
-from typing import Any, Optional
+from typing import Optional
 
 from pathlib import Path
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.security import APIKeyHeader
@@ -35,6 +35,8 @@ from pydantic import BaseModel
 from app.db.session import SessionDB
 from app.logger import logger
 from app.permissions.gate import AgentMode
+from app.server.auth import auth_service, get_principal
+from app.server.auth_router import authenticate_ws, require_session_access, require_user
 
 @asynccontextmanager
 async def _lifespan(application: FastAPI):
@@ -44,6 +46,10 @@ async def _lifespan(application: FastAPI):
             "MANUSCLAW_API_KEY not set — all endpoints are UNAUTHENTICATED. "
             "Set MANUSCLAW_API_KEY in production."
         )
+    try:
+        await auth_service.startup()
+    except Exception as exc:
+        logger.error(f"[Auth] Startup bootstrap failed: {exc}")
     logger.info("ManusClaw Agent Server v5.1.1 started.")
     application.state.background_tasks = set()
     yield
@@ -101,14 +107,16 @@ _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 # Static files directory
 _STATIC_DIR = Path(__file__).parent / "static"
 
-# API key authentication
+# API key authentication (multi-user — see app/server/auth.py)
 
 
-async def require_api_key(key: Optional[str] = Depends(_api_key_header)) -> None:
-    if not _API_KEY:
-        return
-    if key != _API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid or missing API key.")
+async def require_api_key(
+    request: Request,
+    key: Optional[str] = Depends(_api_key_header),
+) -> None:
+    """Authenticate the request: per-user keys (mck_...) via the users DB,
+    or the legacy static MANUSCLAW_API_KEY (legacy-admin principal)."""
+    await require_user(request, key)
 
 
 class ConnectionManager:
@@ -239,10 +247,11 @@ async def root():
 
 
 @app.post("/run", response_model=RunResponse, dependencies=[Depends(require_api_key)])
-async def run_agent(req: RunRequest):
+async def run_agent(req: RunRequest, request: Request):
     mode = AgentMode.PLAN if req.mode.lower() == "plan" else AgentMode.BUILD
     mode_str = mode.value
     session_id = await db.create_session(req.prompt, mode=mode_str)  # Fix: use enum value
+    await auth_service.claim_session(session_id, get_principal(request))
 
     async def _run():
         streamer = StreamingManus(session_id=session_id, mode=mode, max_steps=req.max_steps)
@@ -261,11 +270,12 @@ async def run_agent(req: RunRequest):
 
 
 @app.post("/run/sync", response_model=RunResponse, dependencies=[Depends(require_api_key)])
-async def run_agent_sync(req: RunRequest):
+async def run_agent_sync(req: RunRequest, request: Request):
     from app.agent.manus import Manus
     mode = AgentMode.PLAN if req.mode.lower() == "plan" else AgentMode.BUILD
     mode_str = mode.value
     session_id = await db.create_session(req.prompt, mode=mode_str)  # Fix: use enum value
+    await auth_service.claim_session(session_id, get_principal(request))
     try:
         agent = Manus(mode=mode, session_id=session_id)
         agent._max_steps = req.max_steps
@@ -278,18 +288,22 @@ async def run_agent_sync(req: RunRequest):
 
 
 @app.get("/sessions", dependencies=[Depends(require_api_key)])
-async def list_sessions(limit: int = 20):
-    sessions = await db.get_sessions(limit=limit)
+async def list_sessions(request: Request, limit: int = 20):
+    principal = get_principal(request)
+    owner_ids = None
+    if principal.source == "db_key" and not principal.is_admin:
+        owner_ids = await auth_service.owned_session_ids(principal.user_id, limit)
+    sessions = await db.get_sessions(limit=limit, owner_ids=owner_ids)
     return {"sessions": sessions}
 
 
-@app.get("/sessions/{session_id}/messages", dependencies=[Depends(require_api_key)])
+@app.get("/sessions/{session_id}/messages", dependencies=[Depends(require_api_key), Depends(require_session_access)])
 async def get_messages(session_id: str):
     msgs = await db.get_session_messages(session_id)
     return {"session_id": session_id, "messages": msgs}
 
 
-@app.get("/sessions/{session_id}/tool_calls", dependencies=[Depends(require_api_key)])
+@app.get("/sessions/{session_id}/tool_calls", dependencies=[Depends(require_api_key), Depends(require_session_access)])
 async def get_tool_calls(session_id: str):
     calls = await db.get_session_tool_calls(session_id)
     return {"session_id": session_id, "tool_calls": calls}
@@ -314,14 +328,14 @@ async def list_tools():
 
 @app.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
-    if _API_KEY:
-        token = (
-            websocket.query_params.get("api_key")
-            or websocket.headers.get("x-api-key", "")
-        )
-        if token != _API_KEY:
-            await websocket.close(code=4001)
-            return
+    principal = await authenticate_ws(websocket)
+    if principal is None:
+        await websocket.close(code=4001)
+        return
+    if not await auth_service.claim_session(session_id, principal):
+        # Session owned by another user
+        await websocket.close(code=4003)
+        return
 
     await manager.connect(websocket, session_id)
     logger.info(f"[Server] WebSocket connected: {session_id}")
@@ -390,6 +404,11 @@ from app.server.webhook_router import router as webhook_router
 app.include_router(webhook_router)
 
 
+# ─── Auth router (multi-user API keys) ──────────────────────────────────────
+from app.server.auth_router import router as auth_router
+app.include_router(auth_router)
+
+
 @app.get("/chat", response_class=HTMLResponse)
 async def chat_page():
     """Serve the built-in web chat interface."""
@@ -412,13 +431,7 @@ async def canvas_page(session: str = "default"):
 
 async def _auth_ws(websocket: WebSocket) -> bool:
     """Check WebSocket authentication. Returns True if authorized."""
-    if not _API_KEY:
-        return True
-    token = (
-        websocket.query_params.get("api_key")
-        or websocket.headers.get("x-api-key", "")
-    )
-    return token == _API_KEY
+    return await authenticate_ws(websocket) is not None
 
 
 @app.websocket("/ws/chat/{session_id}")

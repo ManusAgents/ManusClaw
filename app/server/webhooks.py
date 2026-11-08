@@ -13,18 +13,18 @@ Classes:
 """
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import hmac
 import json
 import sqlite3
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
 from app.logger import logger
+from app.server.webhook_reliability import WebhookReliability
 
 # ─── Database ─────────────────────────────────────────────────────────────────
 
@@ -126,11 +126,14 @@ class WebhookManager:
         valid = mgr.verify_hmac("my-hook", payload_bytes, received_signature)
     """
 
-    def __init__(self, db_path: Optional[Path] = None) -> None:
+    def __init__(self, db_path: Optional[Path] = None,
+                 reliability: Optional[WebhookReliability] = None) -> None:
         self._db_path = db_path or _DB_PATH
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn: Optional[sqlite3.Connection] = None
         self._cache: dict[str, WebhookConfig] = {}
+        # Delivery idempotency + per-hook session affinity (same DB file)
+        self._reliability = reliability or WebhookReliability(db_path=self._db_path)
 
     # ─── Database ───────────────────────────────────────────────────────────
 
@@ -307,12 +310,16 @@ class WebhookManager:
         self,
         hook_id: str,
         payload: dict[str, Any],
+        delivery_id: Optional[str] = None,
     ) -> dict[str, Any]:
         """Trigger a webhook and run the agent with the formatted prompt.
 
         Args:
             hook_id: The webhook ID to trigger.
             payload: The JSON payload from the incoming webhook request.
+            delivery_id: Optional delivery identifier for idempotency —
+                repeated deliveries with the same ID are ignored
+                (``status: "duplicate_ignored"``).
 
         Returns:
             Dictionary with trigger result status and optional agent output.
@@ -325,6 +332,17 @@ class WebhookManager:
         if not config.enabled:
             logger.warning(f"[Webhooks] Trigger skipped: webhook {hook_id} is disabled")
             return {"status": "error", "error": f"Webhook {hook_id} is disabled"}
+
+        # Idempotency — skip duplicate deliveries (sender retries)
+        if delivery_id:
+            is_new = await self._reliability.claim_delivery(hook_id, delivery_id)
+            if not is_new:
+                logger.info(f"[Webhooks] Duplicate delivery ignored for {hook_id}: {delivery_id}")
+                return {
+                    "status": "duplicate_ignored",
+                    "hook_id": hook_id,
+                    "delivery_id": delivery_id,
+                }
 
         # Format the prompt from template + payload
         prompt = self._format_prompt(config.prompt_template, payload)
@@ -344,18 +362,24 @@ class WebhookManager:
         config.trigger_count += 1
         config.last_triggered = time.time()
 
-        # Run the agent
+        # Session affinity — one persistent agent session per hook so the
+        # agent keeps memory/context across deliveries.
+        session_id = await self._reliability.resolve_session_id(
+            hook_id, config.target_session
+        )
+
+        # Run the agent (serialised per hook to keep session state consistent)
         try:
             from app.agent.manus import Manus
 
-            agent = Manus(
-                session_id=config.target_session or None,
-            )
-            output = await agent.run(prompt)
+            async with self._reliability.lock_for(hook_id):
+                agent = Manus(session_id=session_id)
+                output = await agent.run(prompt)
             logger.info(f"[Webhooks] Agent completed for {hook_id}")
             return {
                 "status": "ok",
                 "hook_id": hook_id,
+                "session_id": session_id,
                 "agent_output": output[:4000],
                 "trigger_count": config.trigger_count,
             }
@@ -418,7 +442,6 @@ webhook_manager = WebhookManager()
 def main_cli() -> None:
     """Entry point for ``manusclaw-webhook`` — list and manage webhooks from the CLI."""
     import argparse
-    import sys
 
     parser = argparse.ArgumentParser(
         prog="manusclaw-webhook",
