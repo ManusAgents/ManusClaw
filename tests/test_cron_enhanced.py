@@ -115,8 +115,7 @@ def test_scheduler_trigger_job(tmp_path, monkeypatch):
     import time
     monkeypatch.setenv("MANUSCLAW_CRON_FILE", str(tmp_path / "test_cron.yaml"))
     scheduler = CronScheduler()
-    job = scheduler.add_job("job-1", "Test", "* * * * *", "prompt")
-    original_next = job.next_run
+    scheduler.add_job("job-1", "Test", "* * * * *", "prompt")
 
     triggered = scheduler.trigger_job("job-1")
     assert triggered is not None

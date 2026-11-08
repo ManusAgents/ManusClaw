@@ -482,7 +482,7 @@ class HttpRequestTool(BaseTool):
             if json_body is not None:
                 curl_headers.setdefault("Content-Type", "application/json")
             if curl_auth:
-                curl_headers.update(dict(_parse_curl_auth(curl_auth)))
+                curl_headers.update(dict(self._parse_curl_auth(curl_auth)))
             curl = to_curl(method, raw_url, curl_headers, raw_body)
             if params:
                 curl = curl.replace(

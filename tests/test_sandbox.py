@@ -19,7 +19,7 @@ def test_create_sandbox_defaults_to_docker():
     from app.sandbox.factory import create_sandbox
     with patch("app.sandbox.factory._create_docker") as mock_docker:
         mock_docker.return_value = MagicMock()
-        sandbox = create_sandbox()
+        create_sandbox()
         mock_docker.assert_called_once()
 
 
@@ -27,7 +27,7 @@ def test_create_sandbox_explicit_backend():
     from app.sandbox.factory import create_sandbox
     with patch("app.sandbox.factory._create_openshell") as mock_openshell:
         mock_openshell.return_value = MagicMock()
-        sandbox = create_sandbox(backend="openshell")
+        create_sandbox(backend="openshell")
         mock_openshell.assert_called_once()
 
 
@@ -35,7 +35,7 @@ def test_create_sandbox_unknown_backend_falls_back():
     from app.sandbox.factory import create_sandbox
     with patch("app.sandbox.factory._create_docker") as mock_docker:
         mock_docker.return_value = MagicMock()
-        sandbox = create_sandbox(backend="nonexistent_backend")
+        create_sandbox(backend="nonexistent_backend")
         mock_docker.assert_called_once()
 
 
