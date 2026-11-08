@@ -375,6 +375,7 @@ Multi-layer security analysis combining pattern matching, policy rails, LLM-base
 | `pollinations.toml` | Pollinations AI | **Free / No key needed** |
 | `7llm.toml` | 7LLM | Paid / API |
 | `opencode.toml` | OpenCode (deepseek-v4-flash-free) | **Free / No key needed** |
+| `kilo-gateway.toml` | Kilo AI Gateway (kilo-auto/free) | **Free / No key needed** |
 
 #### LLM Infrastructure
 
@@ -389,7 +390,22 @@ Multi-layer security analysis combining pattern matching, policy rails, LLM-base
 | **Token Budget** | Per-session token tracking with grace call support and cost estimation |
 | **LLM Metrics** | Per-conversation cost tracking, latency percentiles (p50/p95/p99), budget alerts, Prometheus export |
 | **Non-Native Tool Calling** | `NonNativeToolCallingMixin` — emulates function calling for models without native support via prompt engineering + JSON extraction |
+| **Free LLM Pool** | `FreePoolRouter` — keyless free-endpoint rotation with health probes, cooldowns, and a security gate (see below) |
 | **Secret Redaction** | Context-aware masking of API keys, Bearer tokens, AWS secrets in prompts and logs |
+
+#### Free LLM Pool — Keyless Rotation with Security Gate
+
+`app/llm/free_pool.py` routes requests across **keyless**, OpenAI-compatible free endpoints with production-grade reliability and privacy guardrails. Any model prefixed with `free/` (e.g. `free/auto`, `free/kilo-auto/free`) is served by the pool.
+
+| Feature | Description |
+|---|---|
+| **Built-in Entries** | Kilo AI Gateway (`kilo-auto/free` + `:free` models), Pollinations, opencode zen — all keyless (`api_key = "none"/"public"`). Overridable via `[llm.free_pool] entries` |
+| **`free/auto` Alias** | Round-robin across all healthy entries; each entry uses its default model. Unknown models pass through to every entry in order |
+| **Health Probes** | TTL-cached `GET /models` probe: a connect-level failure marks an entry dead for the probe TTL; any HTTP response (even 404/405) proves the host is alive |
+| **Cooldowns** | 429 / 5xx / network errors apply per-entry cooldowns with exponential backoff (`cooldown_s` → `max_cooldown_s`); success resets state. Skipped entries appear in `router.health()` |
+| **Security Gate** | Every prompt is scored by a Pattern + PolicyRail ensemble. Risk ≥ `security_threshold` (default `medium`) is **never sent to keyless cloud** — it routes to the local offline router (Ollama/LMStudio/GGUF per `[llm]`) or raises `FreePoolSecurityError`. Rationale: free gateways log prompts by design (`kilo-auto/free`'s own ToS warns about it) |
+| **Fallback Integration** | `fallback_chain = ["free/auto", "gpt-4o"]` puts the pool first; `prepend_to_chain = true` (with `enabled = true`) injects `free/auto` ahead of any existing chain |
+| **No-Network Testing** | Tests inject a fake transport — 25 tests cover rotation, fall-over, capped backoff, probe caching, gate routing, and config schema |
 
 ### 🔐 Secrets Management — Fernet Encryption
 
@@ -628,6 +644,15 @@ python main.py "Create a Python script that generates Fibonacci numbers"
 # Set in config.toml: provider = "pollinations"
 # Or use OpenCode (free deepseek-v4-flash)
 # Set in config.toml: provider = "opencode"
+# Or use the Kilo AI Gateway (free kilo-auto rotating model)
+# Copy providers/kilo-gateway.toml settings into config.toml
+#
+# Best: enable the FreePoolRouter — rotates kilo + pollinations + opencode
+# automatically with health checks, cooldowns, and a security gate that
+# keeps sensitive prompts on local models:
+#   [llm.free_pool]
+#   enabled = true
+# then set model = "free/auto" (or add "free/auto" to llm.fallback chain).
 ```
 
 ### Fully Offline (Air-Gapped)
@@ -681,6 +706,16 @@ buffer_size = 4096
 [llm.fallback]
 enabled = false
 chain = ["gpt-4o", "claude-3-5-sonnet-20241022", "gemini-2.0-flash"]
+
+[llm.free_pool]
+enabled = false                       # serve free/* models via keyless endpoints
+prepend_to_chain = false              # inject free/auto ahead of the fallback chain
+cooldown_s = 60.0
+max_cooldown_s = 1800.0
+health_probe = true
+health_probe_ttl_s = 60.0
+security_threshold = "medium"         # off | low | medium | high — risky prompts never leave the machine
+local_fallback = true                 # route gated prompts to the local [llm] provider
 
 [agent]
 max_iterations = 50

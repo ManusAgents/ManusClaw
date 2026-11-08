@@ -60,6 +60,36 @@ class LLMFallbackConfig(BaseModel):
     triggers:            list[str]     = Field(default_factory=lambda: ["rate_limit", "service_unavailable", "context_window", "quota"])
 
 
+class LLMFreePoolEntryConfig(BaseModel):
+    """One keyless OpenAI-compatible endpoint in the free pool."""
+
+    name:     str
+    base_url: str
+    api_key:  str       = "none"
+    models:   list[str] = Field(default_factory=list)
+
+
+class LLMFreePoolConfig(BaseModel):
+    """Keyless free-LLM pool ([llm.free_pool]).
+
+    Prompts whose security risk >= security_threshold are never sent to
+    keyless cloud endpoints; they are routed to a local offline router
+    (Ollama / LMStudio / GGUF per [llm]) or raise FreePoolSecurityError.
+    """
+
+    enabled:             bool  = False
+    prepend_to_chain:    bool  = False    # try free/auto before the fallback chain (requires a fallback_chain)
+    cooldown_s:          float = 60.0
+    cooldown_multiplier: float = 2.0
+    max_cooldown_s:      float = 1800.0
+    health_probe:        bool  = True
+    health_probe_ttl_s:  float = 60.0
+    security_threshold:  str   = "medium"   # off | unknown | low | medium | high
+    local_fallback:      bool  = True
+    timeout:             int   = 120
+    entries:             list[LLMFreePoolEntryConfig] = Field(default_factory=list)  # empty → built-in defaults (kilo/pollinations/opencode)
+
+
 class LLMConfig(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
@@ -75,6 +105,7 @@ class LLMConfig(BaseModel):
     extra_api_keys: list[str]      = Field(default_factory=list)
     streaming:      LLMStreamingConfig = Field(default_factory=LLMStreamingConfig)
     fallback:       LLMFallbackConfig  = Field(default_factory=LLMFallbackConfig)
+    free_pool:      LLMFreePoolConfig  = Field(default_factory=LLMFreePoolConfig)
 
     @model_validator(mode="after")
     def _coerce_provider(self) -> "LLMConfig":

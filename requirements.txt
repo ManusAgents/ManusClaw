@@ -40,3 +40,6 @@ pytest-xdist>=3.5
 # "server" extra in pyproject.toml).
 fastapi>=0.111
 uvicorn[standard]>=0.30
+# Required by app/security/cipher.py (SecretsConfig file backend) and therefore
+# by every import of the app.security package (incl. the free-pool security gate).
+cryptography>=42

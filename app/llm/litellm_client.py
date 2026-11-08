@@ -31,7 +31,6 @@ Usage::
     response = await client.chat(messages=[...], tools=[...])
 """
 
-import asyncio
 import base64
 import json
 import threading
@@ -40,12 +39,8 @@ from typing import Any, AsyncIterator, Optional
 
 from app.config import Config
 from app.exceptions import (
-    LLMAuthError,
-    ManusClawError,
-    NonRetryableError,
     RateLimitError,
     RetryableError,
-    TokenLimitExceeded,
 )
 from app.logger import logger
 from app.schema import Message, Role, ToolCall, Function
@@ -64,12 +59,9 @@ from app.llm.retry import (
     RetryConfig,
     RetryExecutor,
     map_provider_exception,
-    classify_error,
-    is_retryable,
-    ErrorCategory,
 )
-from app.llm.metrics import LLMMetrics, get_metrics, calculate_cost
-from app.llm.fallback import FallbackStrategy, FallbackConfig, FallbackResult
+from app.llm.metrics import get_metrics, calculate_cost
+from app.llm.fallback import FallbackStrategy, FallbackConfig
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -279,6 +271,20 @@ class LiteLLMClient:
                 config=FallbackConfig(chain=fallback_chain),
             )
 
+        # Free pool (keyless free endpoints) — built when explicitly enabled
+        # or when routing already targets free/* models.
+        self._app_cfg = cfg
+        self._free_pool: Optional[Any] = None
+        fp_cfg = cfg.llm.free_pool
+        chain = list(fallback_chain) if fallback_chain else []
+        if fp_cfg.enabled or any(m.startswith("free/") for m in chain) or self._model.startswith("free/"):
+            from app.llm.free_pool import FREE_AUTO_MODEL, FreePoolRouter
+
+            self._free_pool = FreePoolRouter(fp_cfg, app_config=cfg)
+            if fp_cfg.enabled and fp_cfg.prepend_to_chain and self._fallback is not None:
+                new_chain = [FREE_AUTO_MODEL] + [m for m in chain if m != FREE_AUTO_MODEL]
+                self._fallback = FallbackStrategy(config=FallbackConfig(chain=new_chain))
+
         # Metrics
         self._metrics = get_metrics()
 
@@ -423,6 +429,23 @@ class LiteLLMClient:
         use_temp = temperature if temperature is not None else self._temperature
         use_max_tokens = max_tokens or self._max_tokens
         use_key = api_key or self._api_key
+
+        # Free-pool routing: models prefixed with "free/" bypass litellm and
+        # are served by the keyless, security-gated FreePoolRouter.
+        if use_model.startswith("free/"):
+            if self._free_pool is None:
+                from app.llm.free_pool import FreePoolRouter
+
+                self._free_pool = FreePoolRouter(
+                    self._app_cfg.llm.free_pool, app_config=self._app_cfg,
+                )
+            return await self._free_pool.chat(
+                messages=messages,
+                model=use_model,
+                tools=tools,
+                temperature=use_temp,
+                max_tokens=use_max_tokens,
+            )
 
         if not _HAS_LITELLM:
             return await self._chat_fallback(

@@ -1,0 +1,14 @@
+# Kilo AI Gateway (Free / keyless)
+# OpenAI-compatible endpoint. The "kilo-auto/free" model is free of charge and
+# server-side rotates through available free models — no API key required.
+# NOTE: the gateway's own docs warn that prompts may be logged by upstream
+# providers and are not suitable for sensitive data. The FreePoolRouter
+# security gate (app/llm/free_pool.py) keeps risky prompts on local routers.
+
+[llm]
+provider = "openai"
+base_url = "https://ai-gateway.kilo.ai/api/v1"
+api_key = "none"
+model = "kilo-auto/free"
+max_tokens = 4096
+temperature = 0.0
