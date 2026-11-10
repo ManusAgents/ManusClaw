@@ -33,6 +33,18 @@ class PermissionDenied(Exception):
     pass
 
 
+def _escape_control_chars(value: str) -> str:
+    """Replace ASCII control/escape bytes with a visible \\xNN sequence.
+
+    Prevents untrusted text (a tool name declared by an MCP server, or an
+    action description built from tool args) from manipulating the terminal
+    when printed as part of the Plan Mode approval prompt. Covers C0 controls
+    (0x00-0x1F, including ESC) and DEL (0x7F); printable Unicode is left
+    untouched.
+    """
+    return "".join(ch if ch >= " " and ch != "\x7f" else "\\x%02x" % ord(ch) for ch in value)
+
+
 # ---------------------------------------------------------------------------
 # Rule tables
 # ---------------------------------------------------------------------------
@@ -200,9 +212,11 @@ class PermissionGate:
         import asyncio
         from app.logger import logger
         preview = description or f"{tool_name}({str(args)[:120]})"
+        safe_tool_name = _escape_control_chars(tool_name)
+        safe_preview = _escape_control_chars(preview)
         print(f"\n⏸  [PLAN MODE] Pending action requires approval:")
-        print(f"   Tool: {tool_name}")
-        print(f"   Preview: {preview}")
+        print(f"   Tool: {safe_tool_name}")
+        print(f"   Preview: {safe_preview}")
         # Fix: use run_in_executor to avoid blocking the event loop
         try:
             loop = asyncio.get_running_loop()
